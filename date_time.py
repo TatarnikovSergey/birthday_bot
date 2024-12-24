@@ -75,5 +75,5 @@ if __name__ == '__main__':
     #                  'Пример 5.12.1995 \nДля выхода введите "Q"  \n')
     # birthday = datetime.strptime(birthday, '%d.%m.%Y')
     # print(calculate_days(birthday))
-    calculate_days(BIRTHDAY_LIZA)
+    calculate_days(datetime(2012, 12, 25))
 
