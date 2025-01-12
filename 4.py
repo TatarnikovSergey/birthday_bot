@@ -1,40 +1,52 @@
-import sqlite3
-from datetime import datetime, timedelta
-import telebot
-import time
 import os
+import sqlite3
+import threading
+import time
+from datetime import datetime, timedelta
+
+import telebot
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
-
-
-# Замените 'YOUR_BOT_TOKEN' на токен вашего бота Telegram
-API_TOKEN = '7856229838:AAEvCPPNUZ78aBpNTxni5CBpdF6-X3pS9Ug'
+API_TOKEN = os.getenv('T_TOKEN')
 bot = telebot.TeleBot(API_TOKEN)
 
-chat_id = None
+
+def save_chat_id(chat_id, full_name):
+    """Сохраняем chat_id в базу данных"""
+    con = sqlite3.connect('staff.db')
+    cur = con.cursor()
+    cur.execute('''
+            INSERT OR IGNORE INTO users (chat_id, full_name) VALUES (?, ?);
+        ''', (chat_id, full_name))
+    con.commit()
+    con.close()
 
 
-@bot.message_handler(content_types=['text'])
+@bot.message_handler(commands=['start'])
 def say_hi(message):
-    """Получаем id чата"""
-    global chat_id
-    chat = message.chat
-    chat_id = chat.id
-    # print('say hi', chat_id) if message == 'f' else print(message)
-    bot.send_message(chat_id=chat_id, text='Бот напомнит о дне рождения сотрудников за 3 дня!')
+    """Получаем id чата и сохраняем его в базе данных"""
+    chat_id = message.chat.id
+    full_name = message.from_user.full_name
+    save_chat_id(chat_id, full_name)
+    bot.send_message(chat_id=chat_id,
+                     text=f'Приветствую Вас {full_name}. '
+                          f'Бот напомнит о дне рождения сотрудника за 3 дня!')
+
 
 def check_birthdays():
+    """Проверяем дни рождения на следующие 3 дня"""
     today = datetime.now()
     stacked = []
-
-
 
     # Подключаемся к базе данных
     con = sqlite3.connect('staff.db')
     cur = con.cursor()
 
     # Проверяем дни рождения на следующие 3 дня
-    for days_ahead in range(1, 4):  # 1, 2 и 3 дня вперед
+    for days_ahead in range(1, 34):  # 1, 2 и 3 дня вперед
         date_to_check = today + timedelta(days=days_ahead)
         day_to_filter = date_to_check.strftime("%d")
         month_to_filter = date_to_check.strftime("%m")
@@ -59,18 +71,30 @@ def check_birthdays():
 
     con.close()  # Закрываем соединение с БД
 
+    # Получаем всех пользователей для отправки сообщений
+    con = sqlite3.connect('staff.db')
+    cur = con.cursor()
+    cur.execute('SELECT chat_id FROM users')
+    user_ids = cur.fetchall()
+    con.close()
+
     # Отправляем сообщения
     if stacked:  # Если есть сообщения для отправки
-        for message in stacked:
-            # Замените 'YOUR_CHAT_ID' на ваш chat_id или chat_id группы
+        for chat_id in user_ids:
+            # print(chat_id, "-------", chat_id[0])
+            chat_id = chat_id[0]  # Извлекаем chat_id из кортежа
+            for message in stacked:
+                try:
+                    bot.send_message(chat_id=chat_id, text=message)
+                    time.sleep(1)  # Задержка между отправкой сообщений
+                except Exception as e:
+                    print(
+                        f"Не удалось отправить сообщение пользователю {chat_id}: {e}")
 
-            bot.send_message(chat_id=chat_id, text=message)
-            # bot.send_message(chat_id=current_chat, text=message)
-            time.sleep(1)  # Задержка между отправкой сообщений
 
 def main():
     # Запускаем бота в отдельном потоке
-    import threading
+
     threading.Thread(target=bot.polling).start()
 
     while True:
@@ -82,6 +106,7 @@ def main():
         except Exception as e:
             print(f"Произошла ошибка: {e}")
             time.sleep(60)  # Ждем 1 минуту перед повторной попыткой
+
 
 if __name__ == "__main__":
     main()
