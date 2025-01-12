@@ -9,9 +9,11 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-
+ADMIN_CHAT = os.getenv('ADMIN_CHAT_ID')
 API_TOKEN = os.getenv('T_TOKEN')
 bot = telebot.TeleBot(API_TOKEN)
+
+stacked = []
 
 
 def save_chat_id(chat_id, full_name):
@@ -39,7 +41,7 @@ def say_hi(message):
 def check_birthdays():
     """Проверяем дни рождения на следующие 3 дня"""
     today = datetime.now()
-    stacked = []
+    # stacked = []
 
     # Подключаемся к базе данных
     con = sqlite3.connect('staff.db')
@@ -71,6 +73,8 @@ def check_birthdays():
 
     con.close()  # Закрываем соединение с БД
 
+
+def send_message(bot, message):
     # Получаем всех пользователей для отправки сообщений
     con = sqlite3.connect('staff.db')
     cur = con.cursor()
@@ -88,8 +92,13 @@ def check_birthdays():
                     bot.send_message(chat_id=chat_id, text=message)
                     time.sleep(1)  # Задержка между отправкой сообщений
                 except Exception as e:
+                    bot.send_message(
+                        ADMIN_CHAT,
+                        f"Произошла ошибка: {e} "
+                        f"при отправке сообщения в чат {chat_id}")
                     print(
-                        f"Не удалось отправить сообщение пользователю {chat_id}: {e}")
+                        f"Не удалось отправить сообщение "
+                        f"пользователю {chat_id}: {e}")
 
 
 def main():
@@ -101,9 +110,17 @@ def main():
 
         try:
             check_birthdays()
-            # Ждем 24 часа перед следующей проверкой
-            time.sleep(86400)  # 86400 секунд = 24 часа
+            current_time = datetime.now()#.time()
+
+            # if current_time.strftime('%H:%M') == '19:01':
+            if 9 <= current_time.hour <= 12 \
+                    and current_time.weekday() not in (5, 6):
+                # print(current_time)
+                send_message(bot, stacked)  # Отправляем сообщения
+                stacked.clear()  # Очищаем стек сообщений
+            time.sleep(86400)  # Ждем 24 часа перед следующей проверкой
         except Exception as e:
+            bot.send_message(ADMIN_CHAT, f"Произошла ошибка: {e}")
             print(f"Произошла ошибка: {e}")
             time.sleep(60)  # Ждем 1 минуту перед повторной попыткой
 
