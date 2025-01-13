@@ -14,6 +14,7 @@ API_TOKEN = os.getenv('T_TOKEN')
 bot = telebot.TeleBot(API_TOKEN)
 
 stacked = []
+waiting_users = []
 
 
 def save_chat_id(chat_id, full_name):
@@ -32,10 +33,20 @@ def say_hi(message):
     """Получаем id чата и сохраняем его в базе данных"""
     chat_id = message.chat.id
     full_name = message.from_user.full_name
-    save_chat_id(chat_id, full_name)
+    # save_chat_id(chat_id, full_name)
     bot.send_message(chat_id=chat_id,
                      text=f'Приветствую Вас {full_name}. '
                           f'Бот напомнит о дне рождения сотрудника за 3 дня!')
+    bot.send_message(ADMIN_CHAT,
+                     f'Зарегистрировать пользователя {full_name}?')
+    waiting_users.append((chat_id, full_name))
+    print(waiting_users)
+
+
+@bot.message_handler(text=['123'])
+def registration_user(message):
+    print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1')
+
 
 
 def check_birthdays():
@@ -48,7 +59,7 @@ def check_birthdays():
     cur = con.cursor()
 
     # Проверяем дни рождения на следующие 3 дня
-    for days_ahead in range(1, 34):  # 1, 2 и 3 дня вперед
+    for days_ahead in range(1, 4):  # 1, 2 и 3 дня вперед
         date_to_check = today + timedelta(days=days_ahead)
         day_to_filter = date_to_check.strftime("%d")
         month_to_filter = date_to_check.strftime("%m")
@@ -90,6 +101,7 @@ def send_message(bot, message):
             for message in stacked:
                 try:
                     bot.send_message(chat_id=chat_id, text=message)
+                    print(chat_id)
                     time.sleep(1)  # Задержка между отправкой сообщений
                 except Exception as e:
                     bot.send_message(
@@ -113,7 +125,7 @@ def main():
             current_time = datetime.now()#.time()
 
             # if current_time.strftime('%H:%M') == '19:01':
-            if 9 <= current_time.hour <= 12 \
+            if 9 <= current_time.hour <= 14 \
                     and current_time.weekday() not in (5, 6):
                 # print(current_time)
                 send_message(bot, stacked)  # Отправляем сообщения
