@@ -5,6 +5,7 @@ import time
 from datetime import datetime, timedelta
 
 import telebot
+from telebot import types
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -15,6 +16,15 @@ bot = telebot.TeleBot(API_TOKEN)
 
 stacked = []
 waiting_users = []
+
+# создаем клавиатуру
+keyboard = types.InlineKeyboardMarkup()
+# создаем кнопки, в скобочках первое - сообщение внутри кнопки,
+# второе - текст по которому мы поймем, что именно эта кнопка была нажата (в телеграме этого не будет видно)
+button1 = types.InlineKeyboardButton("Зарегистрировать", callback_data="yes")
+button2 = types.InlineKeyboardButton("Отказать", callback_data="no")
+# добавляем кнопки в клавиатуру
+keyboard.add(button1, button2)
 
 
 def save_chat_id(chat_id, full_name):
@@ -36,15 +46,37 @@ def say_hi(message):
     # save_chat_id(chat_id, full_name)
     bot.send_message(chat_id=chat_id,
                      text=f'Приветствую Вас {full_name}. '
-                          f'Бот напомнит о дне рождения сотрудника за 3 дня!')
+                          f'Этот Бот будет напоминать о дне рождения '
+                          f'сотрудника за 3 дня!')
     bot.send_message(ADMIN_CHAT,
-                     f'Зарегистрировать пользователя {full_name}?')
+                     f'Зарегистрировать пользователя {full_name}?',
+                     reply_markup=keyboard)
     waiting_users.append((chat_id, full_name))
     print(waiting_users)
 
 
-@bot.message_handler(text=['123'])
-def registration_user(message):
+@bot.callback_query_handler(func=lambda call: True)
+def callback_query(call):
+    # Если кнопка "Зарегистрировать" была нажата
+    if call.data == 'yes':
+        chat_id, full_name = waiting_users.pop(0)  # !!!!!!!!!!!!!
+        save_chat_id(chat_id, full_name)
+        bot.send_message(chat_id=chat_id,
+                         text=f'Вы зарегистрированы как {full_name}. '
+                              f'Бот напомнит Вам о дне рождения '
+                              f'сотрудника за 3 дня!')
+        bot.send_message(ADMIN_CHAT,
+                         f'Пользователь {full_name} зарегистрирован!')
+    # Если кнопка "Отказать" была нажата
+    elif call.data == 'no':
+        chat_id, full_name = waiting_users.pop(0)  # !!!!!!!!!!!!!
+        bot.send_message(chat_id=chat_id,
+                         text=f'Вам отказано в регистрации как {full_name}, '
+                              f'поскольку Вы не являетесь сотрудником.')
+        # bot.send_message(ADMIN_CHAT, f'Пользователь {full_name} отказался зарегистрироваться!')
+
+    # Удаляем callback_query, чтобы не повторялась
+    bot.answer_callback_query(callback_query_id=call.id)
     print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1')
 
 
@@ -59,7 +91,7 @@ def check_birthdays():
     cur = con.cursor()
 
     # Проверяем дни рождения на следующие 3 дня
-    for days_ahead in range(1, 4):  # 1, 2 и 3 дня вперед
+    for days_ahead in range(1, 24):  # 1, 2 и 3 дня вперед
         date_to_check = today + timedelta(days=days_ahead)
         day_to_filter = date_to_check.strftime("%d")
         month_to_filter = date_to_check.strftime("%m")
@@ -77,8 +109,8 @@ def check_birthdays():
         if rows:  # Если есть строки
             for row in rows:
                 birth = (
-                    f'{day_to_filter}.{month_to_filter} день рождения сотрудника - ',
-                    f'{row[0]}!',
+                    f'{day_to_filter}.{month_to_filter} день рождения '
+                    f'сотрудника - {row[0]}!',
                     f'Ему исполнится {datetime.now().year - int(row[2][:4])}!')
                 stacked.append(' '.join(birth))  # Объединяем строки в одну
 
@@ -125,12 +157,12 @@ def main():
             current_time = datetime.now()#.time()
 
             # if current_time.strftime('%H:%M') == '19:01':
-            if 9 <= current_time.hour <= 14 \
+            if 9 <= current_time.hour <= 23 \
                     and current_time.weekday() not in (5, 6):
                 # print(current_time)
                 send_message(bot, stacked)  # Отправляем сообщения
                 stacked.clear()  # Очищаем стек сообщений
-            time.sleep(86400)  # Ждем 24 часа перед следующей проверкой
+                time.sleep(86000)  # Ждем +-24 часа перед следующей проверкой
         except Exception as e:
             bot.send_message(ADMIN_CHAT, f"Произошла ошибка: {e}")
             print(f"Произошла ошибка: {e}")
