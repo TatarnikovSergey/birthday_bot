@@ -10,7 +10,7 @@ api_hash = '438ee2de12ff65b320453dda15c4a37d'
 app = Client('my_session', api_id=api_id, api_hash=api_hash)
 
 # Вычисляем дату 214 дней назад
-date = datetime.now() - timedelta(days=214)
+date = datetime.now() - timedelta(days=198)
 
 # Форматируем текущую дату
 current_date = date.strftime("%d.%m")
@@ -20,7 +20,7 @@ month_to_filter = date.strftime("%m")
 stacked = []
 
 # Подключаемся к базе данных
-con = sqlite3.connect('staff.db')
+con = sqlite3.connect('../staff.db')
 cur = con.cursor()
 
 # Выполняем параметризованный SQL-запрос

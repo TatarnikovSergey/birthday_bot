@@ -5,14 +5,15 @@ import time
 from datetime import datetime, timedelta
 
 import telebot
-from telebot import types
 from dotenv import load_dotenv
+from telebot import types
 
 load_dotenv()
 
 ADMIN_CHAT = os.getenv('ADMIN_CHAT_ID')
 API_TOKEN = os.getenv('T_TOKEN')
 bot = telebot.TeleBot(API_TOKEN)
+current_time = datetime.now()  # .time()
 
 stacked = []
 waiting_users = []
@@ -77,8 +78,8 @@ def callback_query(call):
 
     # Удаляем callback_query, чтобы не повторялась
     bot.answer_callback_query(callback_query_id=call.id)
-    print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1')
 
+    print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1')
 
 
 def check_birthdays():
@@ -123,6 +124,9 @@ def send_message(bot, message):
     cur = con.cursor()
     cur.execute('SELECT chat_id FROM users')
     user_ids = cur.fetchall()
+    if current_time.weekday() == 2 and current_time.hour == 19:
+        bot.send_message(ADMIN_CHAT, f'Кол-во зарегистрированных пользователей'
+                                     f' - {len(user_ids)}')
     con.close()
 
     # Отправляем сообщения
@@ -154,7 +158,7 @@ def main():
 
         try:
             check_birthdays()
-            current_time = datetime.now()#.time()
+            # current_time = datetime.now()#.time()
 
             # if current_time.strftime('%H:%M') == '19:01':
             if 9 <= current_time.hour <= 23 \
