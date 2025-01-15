@@ -60,21 +60,29 @@ def say_hi(message):
 def callback_query(call):
     # Если кнопка "Зарегистрировать" была нажата
     if call.data == 'yes':
-        chat_id, full_name = waiting_users.pop(0)  # !!!!!!!!!!!!!
-        save_chat_id(chat_id, full_name)
-        bot.send_message(chat_id=chat_id,
-                         text=f'Вы зарегистрированы как {full_name}. '
-                              f'Бот напомнит Вам о дне рождения '
-                              f'сотрудника за 3 дня!')
-        bot.send_message(ADMIN_CHAT,
-                         f'Пользователь {full_name} зарегистрирован!')
+        try:
+            chat_id, full_name = waiting_users.pop(0)  # !!!!!!!!!!!!!
+            save_chat_id(chat_id, full_name)
+            bot.send_message(chat_id=chat_id,
+                             text=f'Вы зарегистрированы как {full_name}. '
+                                  f'Бот напомнит Вам о дне рождения '
+                                  f'сотрудника за 3 дня!')
+            bot.send_message(ADMIN_CHAT,
+                             f'Пользователь {full_name} зарегистрирован!')
+        except Exception as e:
+            bot.send_message(ADMIN_CHAT,
+                             f'Ошибка {e}!!!')
     # Если кнопка "Отказать" была нажата
     elif call.data == 'no':
-        chat_id, full_name = waiting_users.pop(0)  # !!!!!!!!!!!!!
-        bot.send_message(chat_id=chat_id,
-                         text=f'Вам отказано в регистрации как {full_name}, '
-                              f'поскольку Вы не являетесь сотрудником.')
-        # bot.send_message(ADMIN_CHAT, f'Пользователь {full_name} отказался зарегистрироваться!')
+        try:
+            chat_id, full_name = waiting_users.pop(0)  # !!!!!!!!!!!!!
+            bot.send_message(chat_id=chat_id,
+                             text=f'Вам отказано в регистрации как {full_name}, '
+                                  f'поскольку Вы не являетесь сотрудником.')
+            # bot.send_message(ADMIN_CHAT, f'Пользователь {full_name} отказался зарегистрироваться!')
+        except Exception as e:
+            bot.send_message(ADMIN_CHAT,
+                             f'Ошибка {e}!!!')
 
     # Удаляем callback_query, чтобы не повторялась
     bot.answer_callback_query(callback_query_id=call.id)
@@ -92,7 +100,7 @@ def check_birthdays():
     cur = con.cursor()
 
     # Проверяем дни рождения на следующие 3 дня
-    for days_ahead in range(1, 24):  # 1, 2 и 3 дня вперед
+    for days_ahead in range(1, 23):  # 1, 2 и 3 дня вперед
         date_to_check = today + timedelta(days=days_ahead)
         day_to_filter = date_to_check.strftime("%d")
         month_to_filter = date_to_check.strftime("%m")
@@ -161,7 +169,7 @@ def main():
             # current_time = datetime.now()#.time()
 
             # if current_time.strftime('%H:%M') == '19:01':
-            if 9 <= current_time.hour <= 23 \
+            if 11 <= current_time.hour <= 14 \
                     and current_time.weekday() not in (5, 6):
                 # print(current_time)
                 send_message(bot, stacked)  # Отправляем сообщения
