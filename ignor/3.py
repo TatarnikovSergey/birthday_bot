@@ -13,7 +13,7 @@ def check_birthdays():
     stacked = []
 
     # Подключаемся к базе данных
-    con = sqlite3.connect('staff.db')
+    con = sqlite3.connect('../staff.db')
     cur = con.cursor()
 
     # Проверяем дни рождения на следующие 3 дня
