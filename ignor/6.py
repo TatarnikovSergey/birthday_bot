@@ -1,5 +1,5 @@
 import sqlite3
-conn = sqlite3.connect('staff.db')  # Укажите имя вашей базы данных
+conn = sqlite3.connect('../staff.db')  # Укажите имя вашей базы данных
 cursor = conn.cursor()
 
 # Шаг 3: Создание таблицы (если она еще не существует)
