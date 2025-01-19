@@ -6,20 +6,26 @@ excel_file = 'staff.xlsx'  # Укажите путь к вашему Excel фа�
 sheet_name = 'vp'  # Укажите имя листа, если необходимо
 data = pd.read_excel(excel_file, sheet_name=sheet_name)
 
+# Преобразование столбцов с датами в нужный формат
+if 'date_of_employment' in data.columns:
+    data['date_of_employment'] = pd.to_datetime(data['date_of_employment']).dt.date.astype(str)
+
+if 'date_of_birth' in data.columns:
+    data['date_of_birth'] = pd.to_datetime(data['date_of_birth']).dt.date.astype(str)
+
 # Шаг 2: Создание (или подключение к) SQLite базы данных
 conn = sqlite3.connect('staff.db')  # Укажите имя вашей базы данных
 cursor = conn.cursor()
 
 # Шаг 3: Создание таблицы (если она еще не существует)
-# Предположим, что у вас есть колонки 'id', 'name', 'age' в Excel
 cursor.execute('''
 CREATE TABLE IF NOT EXISTS staff (
     id INTEGER PRIMARY KEY,
     name TEXT,
     tabel_num INTEGER,
     position TEXT,
-    date_of_employment date,
-    date_of_birth date,    
+    date_of_employment TEXT,
+    date_of_birth TEXT,    
     phone_number TEXT)
 ''')
 
@@ -31,4 +37,5 @@ conn.commit()
 conn.close()
 
 print("Данные успешно загружены в базу данных!")
+
 
