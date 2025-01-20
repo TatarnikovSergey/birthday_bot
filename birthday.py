@@ -148,7 +148,7 @@ def edit_staff(message):
         # staff_data = {'name': rows[1], 'tabel_num': rows[2],
         #               'position': rows[3], 'date_of_employment': rows[4],
         #               'date_of_bird': rows[5], 'phone_number': rows[6]}
-        id, name, tabel_num, position, date_of_employment, date_of_bird, \
+        staff_id, name, tabel_num, position, date_of_employment, date_of_bird,\
             phone_number = rows[0]
         print(name)
     #     staff_id = rows[0][0]
