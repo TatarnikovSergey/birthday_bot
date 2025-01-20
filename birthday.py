@@ -124,10 +124,70 @@ def callback_query(call):
     elif call.data == 'delete':
         bot.send_message(call.message.chat.id, "Введите имя сотрудника для удаления:")
         bot.register_next_step_handler(call.message, del_staff)
+    elif call.data == 'list_staff':
+        get_list_staff(call)
+    elif call.data == 'edit':
+        bot.send_message(call.message.chat.id, "Введите имя сотрудника для редактирования:")
+        bot.register_next_step_handler(call.message, edit_staff)
 
 
     # Удаляем callback_query, чтобы не повторялась
     bot.answer_callback_query(callback_query_id=call.id)
+
+
+def edit_staff(message):
+    try:
+        staff_name = message.text
+        rows = db_read('''
+            SELECT * FROM staff WHERE name = ?;
+        ''', (staff_name,))
+        print(rows)
+        if not rows:
+            bot.send_message(message.chat.id, "Сотрудник не найден.")
+            return
+        # staff_data = {'name': rows[1], 'tabel_num': rows[2],
+        #               'position': rows[3], 'date_of_employment': rows[4],
+        #               'date_of_bird': rows[5], 'phone_number': rows[6]}
+        id, name, tabel_num, position, date_of_employment, date_of_bird, \
+            phone_number = rows[0]
+        print(name)
+    #     staff_id = rows[0][0]
+    #     db_record('''DELETE FROM staff WHERE id = ?;''',
+    #               (staff_id,), many=False)
+    #     bot.send_message(message.chat.id, f"Сотрудник {staff_name} удален!")
+    #     bot.send_message(ADMIN_CHAT, f'Сотрудник {staff_name} удален!')
+    except Exception as e:
+        bot.send_message(message.chat.id,
+                         f'Ошибка при изменении сотрудника: {e}')
+
+
+def get_list_staff(call):
+    staff_list = db_read('''
+            SELECT name, position, phone_number
+            FROM staff
+            ORDER BY name ASC;
+            ''')
+
+    # Форматируем список сотрудников в строку
+    if staff_list:
+        staff_message = "Список сотрудников:\n"
+        for staff in staff_list:
+            fio = staff[0].split()
+            short_fio = f"{fio[0]} {fio[1][0]}." \
+                        f"{fio[2][0] if len(fio) >= 3 else None}."
+            staff_message += f'{short_fio}\n {staff[2]}\n --\n'
+    else:
+        staff_message = "Список сотрудников пуст."
+
+        # Разбиваем сообщение на части, если оно слишком длинное
+    max_length = 4096
+    if len(staff_message) > max_length:
+        for i in range(0, len(staff_message), max_length):
+            bot.send_message(call.message.chat.id,
+                             staff_message[i:i + max_length])
+    else:
+        # Отправляем сообщение с полным списком сотрудников
+        bot.send_message(call.message.chat.id, staff_message)
 
 
 def get_name(message):
@@ -150,34 +210,42 @@ def get_tabel_num(message):
 def get_position(message):
     staff_data[message.chat.id]['position'] = message.text
     bot.send_message(message.chat.id,
-                     "Введите дату трудоустройства (ГГГГ-ММ-ДД):")
+                     'Введите дату трудоустройства в формате "ДД.ММ.ГГГГ":')
     bot.register_next_step_handler(message, get_date_of_employment)
+
+
+def convert_date_format(date_str):
+    # Преобразуем строку в объект datetime
+    date_obj = datetime.strptime(date_str, '%d.%m.%Y')
+    # Форматируем объект datetime обратно в строку в нужном формате
+    return date_obj.strftime('%Y-%m-%d')
 
 
 def get_date_of_employment(message):
     # Пример простой проверки формата даты
     try:
-        date_of_employment = message.text  # Здесь можно добавить проверку формата даты
+        date_of_employment = convert_date_format(message.text)
         staff_data[message.chat.id]['date_of_employment'] = date_of_employment
         bot.send_message(message.chat.id,
-                         "Введите день рождения (ГГГГ-ММ-ДД):")
+                         'Введите день рождения в формате "ДД.ММ.ГГГГ":')
         bot.register_next_step_handler(message, get_day_of_birth)
     except ValueError:
         bot.send_message(message.chat.id,
-                         "Пожалуйста, введите корректную дату (ГГГГ-ММ-ДД):")
+                         "Пожалуйста, введите корректную дату (ДД.ММ.ГГГГ):")
         bot.register_next_step_handler(message, get_date_of_employment)
 
 
 def get_day_of_birth(message):
     # Пример простой проверки формата даты
     try:
-        day_of_birth = message.text  # Здесь можно добавить проверку формата даты
+        day_of_birth = convert_date_format(message.text)
         staff_data[message.chat.id]['day_of_birth'] = day_of_birth
-        bot.send_message(message.chat.id, "Введите номер телефона:")
+        bot.send_message(message.chat.id,
+                         'Введите номер телефона (только цифры начиная с 8..:')
         bot.register_next_step_handler(message, get_phone_number)
     except ValueError:
         bot.send_message(message.chat.id,
-                         "Пожалуйста, введите корректную дату (ГГГГ-ММ-ДД):")
+                         "Пожалуйста, введите корректную дату (ДД.ММ.ГГГГ):")
         bot.register_next_step_handler(message, get_day_of_birth)
 
 
@@ -185,7 +253,8 @@ def get_phone_number(message):
     # Простой пример проверки формата номера телефона
     if not message.text.isdigit() or len(message.text) < 10:
         bot.send_message(message.chat.id,
-                         "Пожалуйста, введите корректный номер телефона:")
+                         "Пожалуйста, введите корректный номер телефона."
+                         "Только цифры начиная с 8...:")
         bot.register_next_step_handler(message, get_phone_number)
         return
     staff_data[message.chat.id]['phone_number'] = message.text
@@ -197,12 +266,13 @@ def save_staff(chat_id):
     db_data = [(None, data['name'], data['tabel_num'], data['position'],
                 data['date_of_employment'], data['day_of_birth'],
                 data['phone_number'])]
+    # staff = [i for i in data.items()]
     try:
         db_record('''
                     INSERT INTO staff VALUES (?,?,?,?,?,?,?);
                 ''', db_data)
-        bot.send_message(chat_id, "Сотрудник добавлен успешно!")
-        bot.send_message(ADMIN_CHAT, f'Новый сотрудник добавлен: {data}')
+        bot.send_message(chat_id, f'Сотрудник {data["name"]} добавлен успешно')
+        bot.send_message(ADMIN_CHAT, f'Добавлен сотрудник - {data["name"]}')
     except Exception as e:
         bot.send_message(chat_id,
                          f'Ошибка при добавлении сотрудника: {e}')
@@ -210,24 +280,6 @@ def save_staff(chat_id):
         staff_data.clear()
 
 
-# def del_staff(message):
-#     staff_name = message.text
-#     rows = db_read('''
-#         SELECT id FROM staff WHERE name =?;
-#     ''', (staff_name,))
-#     if not rows:
-#         bot.send_message(message.chat.id, "Сотрудник не найден.")
-#         return
-#     staff_id = rows[0][0]
-#     try:
-#         db_record('''
-#             DELETE FROM staff WHERE id =?;
-#         ''', (staff_id,))
-#         bot.send_message(message.chat.id, "Сотрудник удален успешно!")
-#         bot.send_message(ADMIN_CHAT, f'Сотрудник {staff_name} удален.')
-#     except Exception as e:
-#         bot.send_message(message.chat.id,
-#                          f'Ошибка при удалении сотрудника: {e}')
 def del_staff(message):
     try:
         staff_name = message.text
@@ -241,8 +293,8 @@ def del_staff(message):
         staff_id = rows[0][0]
         db_record('''DELETE FROM staff WHERE id = ?;''',
                   (staff_id,), many=False)
-        bot.send_message(message.chat.id, "Сотрудник удален успешно!")
-        bot.send_message(ADMIN_CHAT, f'Сотрудник {staff_name} удален.')
+        bot.send_message(message.chat.id, f"Сотрудник {staff_name} удален!")
+        bot.send_message(ADMIN_CHAT, f'Сотрудник {staff_name} удален!')
     except Exception as e:
         bot.send_message(message.chat.id,
                          f'Ошибка при удалении сотрудника: {e}')
@@ -298,7 +350,7 @@ def main():
         try:
             check_birthdays()
             if 9 <= current_time.hour <= 22 \
-                    and current_time.weekday() not in (1, 2):
+                    and current_time.weekday() not in (0, 2):
                 send_message(bot, stacked)  # Отправляем сообщения
                 stacked.clear()  # Очищаем стек сообщений
                 time.sleep(86000)  # Ждем +-24 часа перед следующей проверкой
