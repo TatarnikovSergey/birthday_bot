@@ -204,6 +204,8 @@ def update_field(message, field_db_name):
         params = (new_value, staff_edit_id)
         db_record(query, params, many=False)
         bot.send_message(message.chat.id, "Данные успешно обновлены.")
+        staff_edit_data.clear()
+        staff_edit_id.clear()
     except Exception as e:
         bot.send_message(message.chat.id,
                          f"Произошла ошибка при обновлении: {e}")
