@@ -26,22 +26,20 @@ keyboard_start = types.InlineKeyboardMarkup()
 keyboard_crud = types.InlineKeyboardMarkup()
 keyboard_staff = types.InlineKeyboardMarkup()
 # создаем кнопки
-button1 = types.InlineKeyboardButton("Зарегистрировать", callback_data="yes")
-button2 = types.InlineKeyboardButton("Отказать", callback_data="no")
-button3 = types.InlineKeyboardButton("Добавить", callback_data="add")
-button4 = types.InlineKeyboardButton("Изменить", callback_data="edit")
-button5 = types.InlineKeyboardButton("Удалить", callback_data="delete")
-button6 = types.InlineKeyboardButton("Список сотрудников", callback_data="list_staff")
-button7 = types.InlineKeyboardButton("ФИО", callback_data="fio")
-# button8 = types.InlineKeyboardButton("Табельный номер", callback_data="tub_num")
-button9 = types.InlineKeyboardButton("Должность", callback_data="position")
-# button10 = types.InlineKeyboardButton("Дата трудоустройства", callback_data="date")
-button11 = types.InlineKeyboardButton("Номер телефона", callback_data="phone")
-# button7 = types.InlineKeyboardButton("All users", callback_data="list_users")
+button1 = types.InlineKeyboardButton('Зарегистрировать', callback_data='yes')
+button2 = types.InlineKeyboardButton('Отказать', callback_data='no')
+button3 = types.InlineKeyboardButton('Добавить', callback_data='add')
+button4 = types.InlineKeyboardButton('Изменить', callback_data='edit')
+button5 = types.InlineKeyboardButton('Удалить', callback_data='delete')
+button6 = types.InlineKeyboardButton('Список сотрудников',
+                                     callback_data='list_staff')
+button7 = types.InlineKeyboardButton('ФИО', callback_data='fio')
+button8 = types.InlineKeyboardButton('Должность', callback_data='position')
+button9 = types.InlineKeyboardButton('Номер телефона', callback_data='phone')
 # добавляем кнопки в клавиатуру
 keyboard_start.add(button1, button2)
 keyboard_crud.add(button3, button4, button5, button6)
-keyboard_staff.add(button7, button9, button11)
+keyboard_staff.add(button7, button8, button9)
 
 
 def db_record(request, var, many=True):
@@ -74,7 +72,7 @@ def save_user(chat_id, full_name):
     try:
         db_record('''
     INSERT OR IGNORE INTO users (chat_id, full_name) VALUES (?, ?);
-    ''', (chat_id, full_name))
+    ''', (chat_id, full_name), many=False)
     except Exception as e:
         bot.send_message(ADMIN_CHAT, f'Ошибка добавления пользователя: {e}')
 
@@ -82,32 +80,39 @@ def save_user(chat_id, full_name):
 @bot.message_handler(commands=['start'])
 def say_hi(message):
     """Получаем данные нового пользователя."""
-    chat_id = message.chat.id
-    full_name = message.from_user.full_name
-    bot.send_message(chat_id=chat_id,
-                     text=f'Приветствую Вас {full_name}. '
-                          f'Этот Бот будет напоминать о дне рождения '
-                          f'сотрудника за 3 дня!')
-    bot.send_message(ADMIN_CHAT,
-                     f'Зарегистрировать пользователя {full_name}?',
-                     reply_markup=keyboard_start)
-    waiting_users.append((chat_id, full_name))
-    print(waiting_users)
+    try:
+        chat_id = message.chat.id
+        full_name = message.from_user.full_name
+        bot.send_message(chat_id=chat_id,
+                         text=f'Приветствую Вас {full_name}. Это закрытый  Бот'
+                              ' только для сотрудников ОКЭ. Если Вы не '
+                              'сотрудник - Вам будет отказано в регистрации!')
+        bot.send_message(ADMIN_CHAT,
+                         f'Зарегистрировать пользователя {full_name}?',
+                         reply_markup=keyboard_start)
+        waiting_users.append((chat_id, full_name))
+    except Exception as e:
+        bot.send_message(ADMIN_CHAT,
+                         f'Ошибка при получении данных о пользователе: {e}')
 
 
 @bot.message_handler(commands=['crud'])
 def crud_staff(message):
     """Отправляем кнопки CRUD."""
-    bot.send_message(message.chat.id, "CRUD-операции с сотрудниками:",
-                     reply_markup=keyboard_crud)
+    if int(message.chat.id) == int(ADMIN_CHAT):
+        bot.send_message(message.chat.id, "CRUD-операции с сотрудниками:",
+                         reply_markup=keyboard_crud)
+    else:
+        bot.send_message(message.chat.id,
+                         "Вы не являетесь администратором!")
 
 
 @bot.callback_query_handler(func=lambda call: True)
 def callback_query(call):
     """Обработка нажатий кнопок."""
-    if call.data == 'yes':  # Если кнопка "Зарегистрировать" была нажата
-        try:
-            chat_id, full_name = waiting_users.pop(0)  # !!!!!!!!!!!!!
+    try:
+        if call.data == 'yes':  # Если кнопка "Зарегистрировать" была нажата
+            chat_id, full_name = waiting_users.pop(0)
             save_user(chat_id, full_name)
             bot.send_message(chat_id,
                              f'Вы зарегистрированы как {full_name}. '
@@ -115,47 +120,55 @@ def callback_query(call):
                              f'сотрудника за 3 дня!')
             bot.send_message(ADMIN_CHAT,
                              f'Пользователь {full_name} зарегистрирован!')
-        except Exception as e:
-            bot.send_message(ADMIN_CHAT, f'Ошибка {e}!!!')
-    elif call.data == 'no':  # Если кнопка "Отказать" была нажата
-        try:
+        elif call.data == 'no':  # Если кнопка "Отказать" была нажата
             chat_id, full_name = waiting_users.pop(0)  # Достаем пользователя
             bot.send_message(chat_id,
                              f'Вам отказано в регистрации как {full_name}, '
                              f'поскольку Вы не являетесь сотрудником.')
-        except Exception as e:
-            bot.send_message(ADMIN_CHAT, f'Ошибка {e}!!!')
-    elif call.data == 'add':
-        bot.send_message(call.message.chat.id, "Добавление нового сотрудника:")
-        staff_data[call.message.chat.id] = {}  # Инициализируем словарь для хранения данных
-        bot.send_message(call.message.chat.id, "Введите ФИО сотрудника:")
-        bot.register_next_step_handler(call.message, get_name)
-    elif call.data == 'delete':
-        bot.send_message(call.message.chat.id, "Введите имя сотрудника для удаления:")
-        bot.register_next_step_handler(call.message, del_staff)
-    elif call.data == 'list_staff':
-        get_list_staff(call)
-    elif call.data == 'edit':
-        bot.send_message(call.message.chat.id, "Введите ФИО сотрудника для редактирования:")
-        staff_data[call.message.chat.id] = {}
-        bot.register_next_step_handler(call.message, edit_staff)
-
-
-
-
-
-
-    # Удаляем callback_query, чтобы не повторялась
-    bot.answer_callback_query(callback_query_id=call.id)
+        elif call.data == 'add':
+            bot.send_message(call.message.chat.id,
+                             "Добавление нового сотрудника:")
+            staff_data[call.message.chat.id] = {}  # Инициируем словарь данных
+            bot.send_message(call.message.chat.id, "Введите ФИО сотрудника:")
+            bot.register_next_step_handler(call.message, get_name)
+        elif call.data == 'delete':
+            bot.send_message(call.message.chat.id,
+                             "Введите имя сотрудника для удаления:")
+            bot.register_next_step_handler(call.message, del_staff)
+        elif call.data == 'list_staff':
+            get_list_staff(call)
+        elif call.data == 'edit':
+            bot.send_message(call.message.chat.id,
+                             "Введите ФИО сотрудника для редактирования:")
+            staff_data[call.message.chat.id] = {}
+            bot.register_next_step_handler(call.message, edit_staff)
+        elif call.data == 'fio':
+            bot.send_message(call.message.chat.id,
+                             "Введите новое значение для ФИО:")
+            bot.register_next_step_handler(call.message, get_name, 'name')
+        elif call.data == 'position':
+            bot.send_message(call.message.chat.id,
+                             "Введите новое значение для Должности:")
+            bot.register_next_step_handler(call.message,
+                                           update_field, 'position')
+        elif call.data == 'phone':
+            bot.send_message(call.message.chat.id,
+                             "Введите новое значение для Номера телефона:")
+            bot.register_next_step_handler(call.message,
+                                           get_phone_number, 'phone_number')
+        # Удаляем callback_query, чтобы не повторялась
+        bot.answer_callback_query(callback_query_id=call.id)
+    except Exception as e:
+        bot.send_message(ADMIN_CHAT, f'Ошибка обработки кнопок: {e}')
 
 
 def edit_staff(message):
+    """Обновление сотрудника."""
     try:
         staff_name = message.text.strip()
         rows = db_read('''
             SELECT * FROM staff WHERE name = ?;
         ''', (staff_name,))
-        print(rows)
         if not rows:
             bot.send_message(message.chat.id, "Сотрудник не найден.")
             return
@@ -173,38 +186,23 @@ def edit_staff(message):
         }
         bot.send_message(message.chat.id,
                          f"Что вы хотите изменить?:\n{staff_data}\n"
-                         "Введите номер поля для редактирования:\n"
-                         "1. ФИО\n2. Должность\n3. Номер телефона")
-        bot.register_next_step_handler(message, select_field)
+                         "Выберите поле для редактирования:\n",
+                         reply_markup=keyboard_staff)
     except Exception as e:
         bot.send_message(message.chat.id,
                          f"Произошла ошибка при обновлении: {e}")
 
 
-def select_field(message):
-    field_mapping = {
-        '1': ('ФИО', 'name'),
-        '2': ('Должность', 'position'),
-        '3': ('Номер телефона', 'phone_number')
-    }
-    field_number = message.text.strip()
-    field_info = field_mapping.get(field_number)
-    if field_info:
-        field_label, field_name = field_info
-        bot.send_message(message.chat.id, f"Введите новое значение для {field_label}:")
-        bot.register_next_step_handler(message, update_field, field_name)
-    else:
-        bot.send_message(message.chat.id, "Неверный номер поля.")
-        bot.register_next_step_handler(message, select_field)
-
-
-def update_field(message, field_name):
-    new_value = message.text  # Получаем новое значение от пользователя
-    staff_edit_id = staff_edit_data[message.chat.id]['edit_id']  # ID редактируемого сотрудника
+def update_field(message, field_db_name):
+    """Обновление поля сотрудника."""
     try:
-        db_record(f'''
-            UPDATE staff SET {field_name} = ? WHERE id = ?;
-        ''', (new_value, staff_edit_id), many=False)
+        new_value = message.text.strip()
+        staff_edit_id = staff_edit_data[message.chat.id]['edit_id']
+        query = f'''
+            UPDATE staff SET {field_db_name} = ? WHERE id = ?;
+        '''
+        params = (new_value, staff_edit_id)
+        db_record(query, params, many=False)
         bot.send_message(message.chat.id, "Данные успешно обновлены.")
     except Exception as e:
         bot.send_message(message.chat.id,
@@ -212,41 +210,47 @@ def update_field(message, field_name):
 
 
 def get_list_staff(call):
-    staff_list = db_read('''
-            SELECT name, position, phone_number
-            FROM staff
-            ORDER BY name ASC;
-            ''')
+    """Получение списка сотрудников."""
+    try:
+        staff_list = db_read('''
+                SELECT name, position, phone_number
+                FROM staff
+                ORDER BY name ASC;
+                ''')
+        # Форматируем список сотрудников в строку по формату: Фамилия И.О.
+        if staff_list:
+            staff_message = 'Список сотрудников:\n'
+            for staff in staff_list:
+                fio = staff[0].split()
+                short_fio = f'{fio[0]} {fio[1][0]}.' \
+                            f'{fio[2][0] if len(fio) >= 3 else None}.'
+                staff_message += f'{short_fio}\n {staff[2]}\n --\n'
+        else:
+            staff_message = 'Список сотрудников пуст.'
+            # Разбиваем сообщение на части, если оно слишком длинное
+        max_length = 4096
+        if len(staff_message) > max_length:
+            for i in range(0, len(staff_message), max_length):
+                bot.send_message(call.message.chat.id,
+                                 staff_message[i:i + max_length])
+        else:
+            # Отправляем сообщение с полным списком сотрудников
+            bot.send_message(call.message.chat.id, staff_message)
+    except Exception as e:
+        bot.send_message(ADMIN_CHAT,
+                         f'Ошибка получения списка сотрудников: {e}')
 
-    # Форматируем список сотрудников в строку
-    if staff_list:
-        staff_message = "Список сотрудников:\n"
-        for staff in staff_list:
-            fio = staff[0].split()
-            short_fio = f"{fio[0]} {fio[1][0]}." \
-                        f"{fio[2][0] if len(fio) >= 3 else None}."
-            staff_message += f'{short_fio}\n {staff[2]}\n --\n'
-    else:
-        staff_message = "Список сотрудников пуст."
 
-        # Разбиваем сообщение на части, если оно слишком длинное
-    max_length = 4096
-    if len(staff_message) > max_length:
-        for i in range(0, len(staff_message), max_length):
-            bot.send_message(call.message.chat.id,
-                             staff_message[i:i + max_length])
-    else:
-        # Отправляем сообщение с полным списком сотрудников
-        bot.send_message(call.message.chat.id, staff_message)
-
-
-def get_name(message):
+def get_name(message, upd=None):
+    """Добавление/изменение ФИО."""
     name = message.text.strip()
-    bot.send_message(message.chat.id, name)
     if len(name.split()) <= 1 or any(i.isdigit() for i in name):
         bot.send_message(message.chat.id, "Введите корректное ФИО:")
-        bot.register_next_step_handler(message, get_name)
+        bot.register_next_step_handler(message, get_name,
+                                       'name' if upd else None)
         return
+    if upd:
+        return update_field(message, 'name')
     staff_data[message.chat.id]['name'] = name
     bot.send_message(message.chat.id, "Введите табельный номер:")
     bot.register_next_step_handler(message, get_tabel_num)
@@ -305,14 +309,17 @@ def get_day_of_birth(message):
         bot.register_next_step_handler(message, get_day_of_birth)
 
 
-def get_phone_number(message):
+def get_phone_number(message, upd=None):
     # Простой пример проверки формата номера телефона
     if not message.text.isdigit() or len(message.text) < 10:
         bot.send_message(message.chat.id,
                          "Пожалуйста, введите корректный номер телефона."
                          "Только цифры начиная с 8...:")
-        bot.register_next_step_handler(message, get_phone_number)
+        bot.register_next_step_handler(message, get_phone_number,
+                                       'phone_number' if upd else None)
         return
+    if upd:
+        return update_field(message, 'phone_number')
     staff_data[message.chat.id]['phone_number'] = message.text
     save_staff(message.chat.id)  # Сохраняем данные в базе данных
 
@@ -322,7 +329,6 @@ def save_staff(chat_id):
     db_data = [(None, data['name'], data['tabel_num'], data['position'],
                 data['date_of_employment'], data['day_of_birth'],
                 data['phone_number'])]
-    # staff = [i for i in data.items()]
     try:
         db_record('''
                     INSERT INTO staff VALUES (?,?,?,?,?,?,?);
@@ -358,31 +364,31 @@ def del_staff(message):
 
 def check_birthdays():
     pass
-    # """Проверяем дни рождения на следующие 3 дня"""
-    # today = datetime.now()
-    # for days_ahead in range(1, 23):  # 1, 2 и 3 дня вперед - (1, 4)
-    #     date_to_check = today + timedelta(days=days_ahead)
-    #     day_to_filter = date_to_check.strftime("%d")
-    #     month_to_filter = date_to_check.strftime("%m")
-    #     rows = db_read('''
-    #         SELECT name, phone_number, date_of_birth
-    #         FROM staff
-    #         WHERE strftime('%d', date_of_birth) = ?
-    #         AND strftime('%m', date_of_birth) = ?;
-    #     ''', (day_to_filter, month_to_filter))
-    #     if rows:  # Если есть строки
-    #         for row in rows:
-    #             birth = (
-    #                 f'{day_to_filter}.{month_to_filter} день рождения '
-    #                 f'сотрудника - {row[0]}!',
-    #                 f'Ему исполнится {datetime.now().year - int(row[2][:4])}!')
-    #             stacked.append(' '.join(birth))  # Объединяем строки в одну
+    """Проверяем дни рождения на следующие 3 дня"""
+    today = datetime.now()
+    for days_ahead in range(1, 23):  # 1, 2 и 3 дня вперед - (1, 4)
+        date_to_check = today + timedelta(days=days_ahead)
+        day_to_filter = date_to_check.strftime("%d")
+        month_to_filter = date_to_check.strftime("%m")
+        rows = db_read('''
+            SELECT name, phone_number, date_of_birth
+            FROM staff
+            WHERE strftime('%d', date_of_birth) = ?
+            AND strftime('%m', date_of_birth) = ?;
+        ''', (day_to_filter, month_to_filter))
+        if rows:  # Если есть строки
+            for row in rows:
+                birth = (
+                    f'{day_to_filter}.{month_to_filter} день рождения '
+                    f'сотрудника - {row[0]}!',
+                    f'Ему исполнится {datetime.now().year - int(row[2][:4])}!')
+                stacked.append(' '.join(birth))  # Объединяем строки в одну
 
 
 def send_message(bot, message):
     # Получаем всех пользователей для отправки сообщений
     user_ids = db_read('SELECT chat_id FROM users')
-    if current_time.weekday() == 2:    # if current_time.hour == 20:
+    if current_time.weekday() == 1:    # if current_time.hour == 20:
         bot.send_message(ADMIN_CHAT, f'Кол-во зарегистрированных пользователей'
                                      f' - {len(user_ids)}')
     if stacked:  # Если есть сообщения для отправки
@@ -405,8 +411,8 @@ def main():
     while True:
         try:
             check_birthdays()
-            if 9 <= current_time.hour <= 22 \
-                    and current_time.weekday() not in (0, 2):
+            if 11 <= current_time.hour <= 14 \
+                    and datetime.today().weekday() not in (5, 6):
                 send_message(bot, stacked)  # Отправляем сообщения
                 stacked.clear()  # Очищаем стек сообщений
                 time.sleep(86000)  # Ждем +-24 часа перед следующей проверкой
