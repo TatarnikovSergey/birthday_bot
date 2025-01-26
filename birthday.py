@@ -18,21 +18,30 @@ current_time = datetime.now()  # .time()
 stacked = []
 waiting_users = []
 staff_data = {}
+staff_edit_id = []
+staff_edit_data = {}
 
 # создаем клавиатуры
 keyboard_start = types.InlineKeyboardMarkup()
 keyboard_crud = types.InlineKeyboardMarkup()
+keyboard_staff = types.InlineKeyboardMarkup()
 # создаем кнопки
 button1 = types.InlineKeyboardButton("Зарегистрировать", callback_data="yes")
 button2 = types.InlineKeyboardButton("Отказать", callback_data="no")
 button3 = types.InlineKeyboardButton("Добавить", callback_data="add")
 button4 = types.InlineKeyboardButton("Изменить", callback_data="edit")
 button5 = types.InlineKeyboardButton("Удалить", callback_data="delete")
-button6 = types.InlineKeyboardButton("All staff", callback_data="list_staff")
+button6 = types.InlineKeyboardButton("Список сотрудников", callback_data="list_staff")
+button7 = types.InlineKeyboardButton("ФИО", callback_data="fio")
+# button8 = types.InlineKeyboardButton("Табельный номер", callback_data="tub_num")
+button9 = types.InlineKeyboardButton("Должность", callback_data="position")
+# button10 = types.InlineKeyboardButton("Дата трудоустройства", callback_data="date")
+button11 = types.InlineKeyboardButton("Номер телефона", callback_data="phone")
 # button7 = types.InlineKeyboardButton("All users", callback_data="list_users")
 # добавляем кнопки в клавиатуру
 keyboard_start.add(button1, button2)
 keyboard_crud.add(button3, button4, button5, button6)
+keyboard_staff.add(button7, button9, button11)
 
 
 def db_record(request, var, many=True):
@@ -127,8 +136,13 @@ def callback_query(call):
     elif call.data == 'list_staff':
         get_list_staff(call)
     elif call.data == 'edit':
-        bot.send_message(call.message.chat.id, "Введите имя сотрудника для редактирования:")
+        bot.send_message(call.message.chat.id, "Введите ФИО сотрудника для редактирования:")
+        staff_data[call.message.chat.id] = {}
         bot.register_next_step_handler(call.message, edit_staff)
+
+
+
+
 
 
     # Удаляем callback_query, чтобы не повторялась
@@ -137,7 +151,7 @@ def callback_query(call):
 
 def edit_staff(message):
     try:
-        staff_name = message.text
+        staff_name = message.text.strip()
         rows = db_read('''
             SELECT * FROM staff WHERE name = ?;
         ''', (staff_name,))
@@ -145,20 +159,56 @@ def edit_staff(message):
         if not rows:
             bot.send_message(message.chat.id, "Сотрудник не найден.")
             return
-        # staff_data = {'name': rows[1], 'tabel_num': rows[2],
-        #               'position': rows[3], 'date_of_employment': rows[4],
-        #               'date_of_bird': rows[5], 'phone_number': rows[6]}
-        staff_id, name, tabel_num, position, date_of_employment, date_of_bird,\
-            phone_number = rows[0]
-        print(name)
-    #     staff_id = rows[0][0]
-    #     db_record('''DELETE FROM staff WHERE id = ?;''',
-    #               (staff_id,), many=False)
-    #     bot.send_message(message.chat.id, f"Сотрудник {staff_name} удален!")
-    #     bot.send_message(ADMIN_CHAT, f'Сотрудник {staff_name} удален!')
+        staff_edit_id = rows[0][0]
+        staff_edit_data[message.chat.id] = {
+            'edit_id': staff_edit_id,
+            'name': rows[0][1],
+            'position': rows[0][3],
+            'phone_number': rows[0][6]
+        }
+        staff_data = {
+            'ФИО': rows[0][1],
+            'Должность': rows[0][3],
+            'Номер телефона': rows[0][6]
+        }
+        bot.send_message(message.chat.id,
+                         f"Что вы хотите изменить?:\n{staff_data}\n"
+                         "Введите номер поля для редактирования:\n"
+                         "1. ФИО\n2. Должность\n3. Номер телефона")
+        bot.register_next_step_handler(message, select_field)
     except Exception as e:
         bot.send_message(message.chat.id,
-                         f'Ошибка при изменении сотрудника: {e}')
+                         f"Произошла ошибка при обновлении: {e}")
+
+
+def select_field(message):
+    field_mapping = {
+        '1': ('ФИО', 'name'),
+        '2': ('Должность', 'position'),
+        '3': ('Номер телефона', 'phone_number')
+    }
+    field_number = message.text.strip()
+    field_info = field_mapping.get(field_number)
+    if field_info:
+        field_label, field_name = field_info
+        bot.send_message(message.chat.id, f"Введите новое значение для {field_label}:")
+        bot.register_next_step_handler(message, update_field, field_name)
+    else:
+        bot.send_message(message.chat.id, "Неверный номер поля.")
+        bot.register_next_step_handler(message, select_field)
+
+
+def update_field(message, field_name):
+    new_value = message.text  # Получаем новое значение от пользователя
+    staff_edit_id = staff_edit_data[message.chat.id]['edit_id']  # ID редактируемого сотрудника
+    try:
+        db_record(f'''
+            UPDATE staff SET {field_name} = ? WHERE id = ?;
+        ''', (new_value, staff_edit_id), many=False)
+        bot.send_message(message.chat.id, "Данные успешно обновлены.")
+    except Exception as e:
+        bot.send_message(message.chat.id,
+                         f"Произошла ошибка при обновлении: {e}")
 
 
 def get_list_staff(call):
@@ -191,7 +241,13 @@ def get_list_staff(call):
 
 
 def get_name(message):
-    staff_data[message.chat.id]['name'] = message.text
+    name = message.text.strip()
+    bot.send_message(message.chat.id, name)
+    if len(name.split()) <= 1 or any(i.isdigit() for i in name):
+        bot.send_message(message.chat.id, "Введите корректное ФИО:")
+        bot.register_next_step_handler(message, get_name)
+        return
+    staff_data[message.chat.id]['name'] = name
     bot.send_message(message.chat.id, "Введите табельный номер:")
     bot.register_next_step_handler(message, get_tabel_num)
 
