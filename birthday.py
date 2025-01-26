@@ -363,7 +363,6 @@ def del_staff(message):
 
 
 def check_birthdays():
-    pass
     """Проверяем дни рождения на следующие 3 дня"""
     today = datetime.now()
     for days_ahead in range(1, 23):  # 1, 2 и 3 дня вперед - (1, 4)
