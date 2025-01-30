@@ -128,35 +128,57 @@ def callback_query(call):
         elif call.data == 'add':
             bot.send_message(call.message.chat.id,
                              "Добавление нового сотрудника:")
+            bot.edit_message_reply_markup(chat_id=call.message.chat.id,
+                                          message_id=call.message.message_id,
+                                          reply_markup=None)
             staff_data[call.message.chat.id] = {}  # Инициируем словарь данных
             bot.send_message(call.message.chat.id, "Введите ФИО сотрудника:")
             bot.register_next_step_handler(call.message, get_name)
         elif call.data == 'delete':
             bot.send_message(call.message.chat.id,
                              "Введите имя сотрудника для удаления:")
+            bot.edit_message_reply_markup(chat_id=call.message.chat.id,
+                                          message_id=call.message.message_id,
+                                          reply_markup=None)
             bot.register_next_step_handler(call.message, del_staff)
         elif call.data == 'list_staff':
             get_list_staff(call)
+            bot.edit_message_reply_markup(chat_id=call.message.chat.id,
+                                          message_id=call.message.message_id,
+                                          reply_markup=None)
         elif call.data == 'edit':
             bot.send_message(call.message.chat.id,
                              "Введите ФИО сотрудника для редактирования:")
+            bot.edit_message_reply_markup(chat_id=call.message.chat.id,
+                                          message_id=call.message.message_id,
+                                          reply_markup=None)
             staff_data[call.message.chat.id] = {}
             bot.register_next_step_handler(call.message, edit_staff)
         elif call.data == 'fio':
             bot.send_message(call.message.chat.id,
                              "Введите новое значение для ФИО:")
+            bot.edit_message_reply_markup(chat_id=call.message.chat.id,
+                                          message_id=call.message.message_id,
+                                          reply_markup=None)
             bot.register_next_step_handler(call.message, get_name, 'name')
         elif call.data == 'position':
             bot.send_message(call.message.chat.id,
                              "Введите новое значение для Должности:")
+            bot.edit_message_reply_markup(chat_id=call.message.chat.id,
+                                          message_id=call.message.message_id,
+                                          reply_markup=None)
             bot.register_next_step_handler(call.message,
                                            update_field, 'position')
         elif call.data == 'phone':
             bot.send_message(call.message.chat.id,
                              "Введите новое значение для Номера телефона:")
+            bot.edit_message_reply_markup(chat_id=call.message.chat.id,
+                                          message_id=call.message.message_id,
+                                          reply_markup=None)
             bot.register_next_step_handler(call.message,
                                            get_phone_number, 'phone_number')
         # Удаляем callback_query, чтобы не повторялась
+
         bot.answer_callback_query(callback_query_id=call.id)
     except Exception as e:
         bot.send_message(ADMIN_CHAT, f'Ошибка обработки кнопок: {e}')
@@ -367,7 +389,7 @@ def del_staff(message):
 def check_birthdays():
     """Проверяем дни рождения на следующие 3 дня"""
     today = datetime.now()
-    for days_ahead in range(1, 23):  # 1, 2 и 3 дня вперед - (1, 4)
+    for days_ahead in range(1, 7):  # 1, 2 и 3 дня вперед - (1, 4)
         date_to_check = today + timedelta(days=days_ahead)
         day_to_filter = date_to_check.strftime("%d")
         month_to_filter = date_to_check.strftime("%m")
@@ -409,14 +431,22 @@ def send_message(bot, message):
 def main():
     # Запускаем бота в отдельном потоке
     threading.Thread(target=bot.polling).start()
+
     while True:
         try:
             check_birthdays()
-            if 11 <= current_time.hour <= 14 \
-                    and datetime.today().weekday() not in (5, 6):
+            # if 20 <= current_time.hour <= 21 \
+            #         and datetime.today().weekday() not in (5, 6):
+            #     send_message(bot, stacked)  # Отправляем сообщения
+            #     stacked.clear()  # Очищаем стек сообщений
+            #     time.sleep(86000)
+            if current_time.hour == 22 and 45 <=current_time.minute <= 47:
+                print(current_time)
+                        # and datetime.today().weekday() not in (5, 6):
                 send_message(bot, stacked)  # Отправляем сообщения
                 stacked.clear()  # Очищаем стек сообщений
-                time.sleep(86000)  # Ждем +-24 часа перед следующей проверкой
+                time.sleep(86000)
+                # Ждем +-24 часа перед следующей проверкой
         except Exception as e:
             bot.send_message(ADMIN_CHAT, f"Произошла ошибка: {e}")
             time.sleep(60)  # Ждем 1 минуту перед повторной попыткой
