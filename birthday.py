@@ -501,7 +501,7 @@ def main():
     while True:
         try:
             current_time = datetime.now()
-            if current_time.hour == 9 and current_time.minute >= 1:
+            if current_time.hour == 9 and 57 < current_time.minute <= 59:
                 today_birthday()
                 check_birthdays()
                 send_message(bot, stacked)  # Отправляем сообщения
