@@ -18,7 +18,7 @@ current_time = datetime.now()  # .time()
 stacked = []
 waiting_users = []
 staff_data = {}
-staff_edit_id = []
+# staff_edit_id = []
 staff_edit_data = {}
 
 # создаем клавиатуры
@@ -205,7 +205,7 @@ def update_field(message, field_db_name):
         db_record(query, params, many=False)
         bot.send_message(message.chat.id, "Данные успешно обновлены.")
         staff_edit_data.clear()
-        staff_edit_id.clear()
+        staff_edit_id = None
     except Exception as e:
         bot.send_message(message.chat.id,
                          f"Произошла ошибка при обновлении: {e}")
@@ -219,7 +219,7 @@ def get_list_staff(call):
                 FROM staff
                 ORDER BY name ASC;
                 ''')
-        # Форматируем список сотрудников в строку по формату: Фамилия И.О.
+         # Форматируем список сотрудников в строку по формату: Фамилия И.О.
         if staff_list:
             staff_message = 'Список сотрудников:\n'
             for staff in staff_list:
