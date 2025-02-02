@@ -386,10 +386,16 @@ def del_staff(message):
                          f'Ошибка при удалении сотрудника: {e}')
 
 
+def convert_phone_number(phone_number):
+    if phone_number.startswith('8'):
+        return '+7' + phone_number[1:]  # Заменяем 8 на +7
+    return phone_number  # Если номер уже в правильном формате
+
+
 def check_birthdays():
     """Проверяем дни рождения на следующие 3 дня"""
     today = datetime.now()
-    for days_ahead in range(1, 7):  # 1, 2 и 3 дня вперед - (1, 4)
+    for days_ahead in range(2, 7):  # 1, 2 и 3 дня вперед - (1, 4)
         date_to_check = today + timedelta(days=days_ahead)
         day_to_filter = date_to_check.strftime("%d")
         month_to_filter = date_to_check.strftime("%m")
@@ -401,17 +407,45 @@ def check_birthdays():
         ''', (day_to_filter, month_to_filter))
         if rows:  # Если есть строки
             for row in rows:
+                age = datetime.now().year - int(row[2][:4])
+                phone_number = convert_phone_number(row[1])
                 birth = (
                     f'{day_to_filter}.{month_to_filter} день рождения '
-                    f'сотрудника - {row[0]}!',
-                    f'Ему исполнится {datetime.now().year - int(row[2][:4])}!')
-                stacked.append(' '.join(birth))  # Объединяем строки в одну
+                    f'сотрудника - <b>{row[0]}</b>!',
+                    f'Ему исполнится {age}!'
+                    # f' Поздравить - {phone_number}'
+                )
+                stacked.append(' '.join(birth))# Объединяем строки в одну
+
+
+def today_birthday():
+    """Проверяем дни рождения на сегодня."""
+    today = datetime.now()
+    day_to_filter = today.strftime("%d")
+    month_to_filter = today.strftime("%m")
+    rows = db_read('''
+            SELECT name, phone_number, date_of_birth
+            FROM staff
+            WHERE strftime('%d', date_of_birth) = ?
+            AND strftime('%m', date_of_birth) = ?;
+        ''', (day_to_filter, month_to_filter))
+    if rows:  # Если есть строки
+        for row in rows:
+            age = datetime.now().year - int(row[2][:4])
+            phone_number = convert_phone_number(row[1])
+            birth = (
+                f'Сегодня день рождения '
+                f'сотрудника - <b>{row[0]}</b>!',
+                f'Ему исполняется {age}!'
+                f' Поздравить: <b>{phone_number}</b>'
+            )
+            stacked.append(' '.join(birth))# Объединяем строки в одну
 
 
 def send_message(bot, message):
     # Получаем всех пользователей для отправки сообщений
     user_ids = db_read('SELECT chat_id FROM users')
-    if current_time.weekday() == 1:    # if current_time.hour == 20:
+    if current_time.weekday() == 0:    # if current_time.hour == 20:
         bot.send_message(ADMIN_CHAT, f'Кол-во зарегистрированных пользователей'
                                      f' - {len(user_ids)}')
     if stacked:  # Если есть сообщения для отправки
@@ -419,7 +453,8 @@ def send_message(bot, message):
             chat_id = chat_id[0]  # Извлекаем chat_id из кортежа
             for message in stacked:
                 try:
-                    bot.send_message(chat_id=chat_id, text=message)
+                    bot.send_message(chat_id=chat_id, text=message,
+                                     parse_mode='HTML')
                     time.sleep(1)  # Задержка между отправкой сообщений
                 except Exception as e:
                     bot.send_message(
@@ -431,22 +466,15 @@ def send_message(bot, message):
 def main():
     # Запускаем бота в отдельном потоке
     threading.Thread(target=bot.polling).start()
-
     while True:
         try:
-            check_birthdays()
-            # if 20 <= current_time.hour <= 21 \
-            #         and datetime.today().weekday() not in (5, 6):
-            #     send_message(bot, stacked)  # Отправляем сообщения
-            #     stacked.clear()  # Очищаем стек сообщений
-            #     time.sleep(86000)
-            if current_time.hour == 22 and 45 <=current_time.minute <= 47:
-                print(current_time)
-                        # and datetime.today().weekday() not in (5, 6):
+            current_time = datetime.now()
+            if current_time.hour == 16 and current_time.minute >= 1:
+                today_birthday()
+                check_birthdays()
                 send_message(bot, stacked)  # Отправляем сообщения
                 stacked.clear()  # Очищаем стек сообщений
-                time.sleep(86000)
-                # Ждем +-24 часа перед следующей проверкой
+                time.sleep(86400)  # Ждем +-24 часа перед следующей проверкой
         except Exception as e:
             bot.send_message(ADMIN_CHAT, f"Произошла ошибка: {e}")
             time.sleep(60)  # Ждем 1 минуту перед повторной попыткой
