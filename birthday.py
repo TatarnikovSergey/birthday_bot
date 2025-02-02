@@ -13,7 +13,7 @@ load_dotenv()
 ADMIN_CHAT = os.getenv('ADMIN_CHAT_ID')
 API_TOKEN = os.getenv('T_TOKEN')
 bot = telebot.TeleBot(API_TOKEN)
-current_time = datetime.now()  # .time()
+# current_time = datetime.now()  # .time()
 
 stacked = []
 waiting_users = []
@@ -445,7 +445,7 @@ def today_birthday():
 def send_message(bot, message):
     # Получаем всех пользователей для отправки сообщений
     user_ids = db_read('SELECT chat_id FROM users')
-    if current_time.weekday() == 0:    # if current_time.hour == 20:
+    if datetime.now().weekday() == 6:    # if current_time.hour == 20:
         bot.send_message(ADMIN_CHAT, f'Кол-во зарегистрированных пользователей'
                                      f' - {len(user_ids)}')
     if stacked:  # Если есть сообщения для отправки
