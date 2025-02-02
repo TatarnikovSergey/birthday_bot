@@ -220,8 +220,8 @@ def edit_staff(message):
     try:
         staff_name = message.text.strip()
         rows = db_read('''
-            SELECT * FROM staff WHERE name = ?;
-        ''', (staff_name,))
+            SELECT * FROM staff WHERE name LIKE ;
+        ''', (f'{staff_name}%',))
         if not rows:
             bot.send_message(message.chat.id, "Сотрудник не найден.")
             return
