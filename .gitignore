@@ -1,2 +1,7 @@
 .env
 staff.db
+/ignor/
+/my_session.session
+/staff.xlsx
+/~$staff.xlsx
+/venv/
