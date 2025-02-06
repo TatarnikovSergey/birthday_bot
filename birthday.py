@@ -109,6 +109,20 @@ def crud_staff(message):
 
 
 @bot.message_handler(commands=['cancel'])
+def cancel_staff(message):
+    print('EXITING')
+
+    # chat_id = message.chat.id
+    # if chat_id in staff_data:
+    #     bot.send_message(chat_id, "Время ожидания истекло. Ввод данных сброшен.")
+    #     del staff_data[chat_id]  # Удаляем данные о сотруднике
+    #     if chat_id in reset_timers:
+    #         del reset_timers[chat_id]  # Удаляем таймер
+    # return
+
+
+
+
 def reset_input(chat_id):
     """Функция сброса ввода данных."""
     if chat_id in staff_data:
@@ -116,7 +130,7 @@ def reset_input(chat_id):
         del staff_data[chat_id]  # Удаляем данные о сотруднике
         if chat_id in reset_timers:
             del reset_timers[chat_id]  # Удаляем таймер
-
+    return
 
 
 
@@ -147,7 +161,7 @@ def callback_query(call):
             staff_data[call.message.chat.id] = {}  # Инициируем словарь данных
             bot.send_message(call.message.chat.id, "Введите ФИО сотрудника:")
             chat_id = call.message.chat.id
-            reset_timers[chat_id] = threading.Timer(5.0, reset_input, [chat_id])  # Устанавливаем таймер
+            reset_timers[chat_id] = threading.Timer(30.0, reset_input, [chat_id])  # Устанавливаем таймер
             reset_timers[chat_id].start()
             print(reset_timers)
             bot.register_next_step_handler(call.message, get_name)
@@ -321,7 +335,8 @@ def get_name(message, upd=None):
     name = message.text.strip()
     if chat_id not in reset_timers:  # Если время на ввод истекло
         print(reset_timers, '!!!!!!!!!!!!!!!!!!!')
-        return get_staff(message)
+        # return get_staff(message)
+        return
     else:
         reset_timers[chat_id].cancel()  # Иначе останавливаем таймер
     if len(name.split()) <= 1 or any(i.isdigit() for i in name):
@@ -453,7 +468,7 @@ def convert_phone_number(phone_number):
 def check_birthdays():
     """Проверяем дни рождения на следующие 3 дня"""
     today = datetime.now()
-    for days_ahead in range(2, 7):  # 1, 2 и 3 дня вперед - (1, 4)
+    for days_ahead in range(1, 7):  # 1, 2 и 3 дня вперед - (1, 4)
         date_to_check = today + timedelta(days=days_ahead)
         day_to_filter = date_to_check.strftime("%d")
         month_to_filter = date_to_check.strftime("%m")
@@ -527,7 +542,7 @@ def main():
     while True:
         try:
             current_time = datetime.now()
-            if current_time.hour == 9 and 57 < current_time.minute <= 59:
+            if current_time.hour >= 9 and current_time.minute <= 59:
                 today_birthday()
                 check_birthdays()
                 send_message(bot, stacked)  # Отправляем сообщения
