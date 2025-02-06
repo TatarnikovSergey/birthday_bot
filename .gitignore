@@ -1,5 +1,8 @@
 .env
 staff.db
+staff.db.sqlite3
+db.sqlite3
+db.sqlite3-journal
 /ignor/
 /my_session.session
 /staff.xlsx

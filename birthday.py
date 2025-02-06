@@ -427,7 +427,7 @@ def convert_phone_number(phone_number):
 def check_birthdays():
     """Проверяем дни рождения на следующие 3 дня"""
     today = datetime.now()
-    for days_ahead in range(2, 7):  # 1, 2 и 3 дня вперед - (1, 4)
+    for days_ahead in range(1, 4):  # 1, 2 и 3 дня вперед - (1, 4)
         date_to_check = today + timedelta(days=days_ahead)
         day_to_filter = date_to_check.strftime("%d")
         month_to_filter = date_to_check.strftime("%m")
