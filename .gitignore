@@ -1,5 +1,6 @@
 .env
 staff.db
+staff.db.sqlite3
 db.sqlite3
 db.sqlite3-journal
 /ignor/
@@ -7,3 +8,4 @@ db.sqlite3-journal
 /staff.xlsx
 /~$staff.xlsx
 /venv/
+.idea/
