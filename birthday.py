@@ -504,6 +504,7 @@ def main():
             current_time = datetime.now()
             if current_time - last_run_time >= timedelta(days=1) and \
                     current_time.hour == 9 and current_time.minute >= 55:
+                last_run_time = current_time  # Обновляем время последнего запуска
                 today_birthday()
                 check_birthdays()
                 send_message(bot, stacked)  # Отправляем сообщения
