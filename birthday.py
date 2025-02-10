@@ -536,18 +536,21 @@ def send_message(bot, message):
                         f"при отправке сообщения в чат {chat_id}")
 
 
+
 def main():
     # Запускаем бота в отдельном потоке
     threading.Thread(target=bot.polling).start()
+    last_run_time = datetime.now() - timedelta(days=1)
     while True:
         try:
             current_time = datetime.now()
-            if current_time.hour >= 9 and current_time.minute <= 59:
+            if current_time - last_run_time >= timedelta(days=1) and (current_time.hour == 22 and current_time.minute >= 24):
+                last_run_time = current_time
                 today_birthday()
                 check_birthdays()
                 send_message(bot, stacked)  # Отправляем сообщения
                 stacked.clear()  # Очищаем стек сообщений
-                time.sleep(86400)  # Ждем +-24 часа перед следующей проверкой
+            time.sleep(60)  # Ждем +-24 часа перед следующей проверкой
         except Exception as e:
             bot.send_message(ADMIN_CHAT, f"Произошла ошибка: {e}")
             time.sleep(60)  # Ждем 1 минуту перед повторной попыткой
