@@ -111,26 +111,31 @@ def crud_staff(message):
 @bot.message_handler(commands=['cancel'])
 def cancel_staff(message):
     print('EXITING')
-
-    # chat_id = message.chat.id
-    # if chat_id in staff_data:
-    #     bot.send_message(chat_id, "Время ожидания истекло. Ввод данных сброшен.")
-    #     del staff_data[chat_id]  # Удаляем данные о сотруднике
-    #     if chat_id in reset_timers:
-    #         del reset_timers[chat_id]  # Удаляем таймер
-    # return
-
-
-
-
-def reset_input(chat_id):
-    """Функция сброса ввода данных."""
+    if not isinstance(message, int):
+        chat_id = message.chat.id
+    else:
+        chat_id = message
     if chat_id in staff_data:
-        bot.send_message(chat_id, "Время ожидания истекло. Ввод данных сброшен.")
         del staff_data[chat_id]  # Удаляем данные о сотруднике
         if chat_id in reset_timers:
+            reset_timers[chat_id].cancel()
             del reset_timers[chat_id]  # Удаляем таймер
-    return
+        bot.send_message(chat_id,
+                         "Ввод отменен. Вы можете ввести любую команду.")
+    else:
+        bot.send_message(chat_id, "Нет активного ввода для отмены.")
+
+
+
+
+# def reset_input(chat_id):
+#     """Функция сброса ввода данных."""
+#     if chat_id in staff_data:
+#         bot.send_message(chat_id, "Время ожидания истекло. Ввод данных сброшен.")
+#         del staff_data[chat_id]  # Удаляем данные о сотруднике
+#         if chat_id in reset_timers:
+#             del reset_timers[chat_id]  # Удаляем таймер
+#     return
 
 
 
@@ -161,7 +166,7 @@ def callback_query(call):
             staff_data[call.message.chat.id] = {}  # Инициируем словарь данных
             bot.send_message(call.message.chat.id, "Введите ФИО сотрудника:")
             chat_id = call.message.chat.id
-            reset_timers[chat_id] = threading.Timer(30.0, reset_input, [chat_id])  # Устанавливаем таймер
+            reset_timers[chat_id] = threading.Timer(10.0, cancel_staff, [chat_id])  # Устанавливаем таймер
             reset_timers[chat_id].start()
             print(reset_timers)
             bot.register_next_step_handler(call.message, get_name)
@@ -332,13 +337,18 @@ def get_list_staff(call):
 def get_name(message, upd=None):
     """Добавление/изменение ФИО."""
     chat_id = message.chat.id
-    name = message.text.strip()
-    if chat_id not in reset_timers:  # Если время на ввод истекло
-        print(reset_timers, '!!!!!!!!!!!!!!!!!!!')
-        # return get_staff(message)
-        return
+    if message.text.strip() == '/cancel':# or chat_id not in reset_timers:
+        return cancel_staff(message)  # Обработка отмены
+    # name = message.text.strip()
+    elif chat_id not in reset_timers:  # Если время на ввод истекло
+    #     # print(reset_timers, '!!!!!!!!!!!!!!!!!!!')
+        return get_staff(message)
+    #     return
     else:
         reset_timers[chat_id].cancel()  # Иначе останавливаем таймер
+
+
+    name = message.text.strip()
     if len(name.split()) <= 1 or any(i.isdigit() for i in name):
         bot.send_message(chat_id, "Введите корректное ФИО:")
         bot.register_next_step_handler(message, get_name,
