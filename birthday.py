@@ -187,33 +187,35 @@ def callback_query(call):
 @bot.message_handler(func=lambda msg: msg.text)
 def get_staff(message):
     """Инфо о сотруднике."""
-    find = message.text.strip()
-    # rows = db_read('''
-    #     SELECT * FROM staff WHERE name = ?;
-    # ''', (find,))
-    rows= db_read('''
-            SELECT * FROM staff WHERE name LIKE ?;
-        ''', (f'{find}%',))
-    if not rows:
-        bot.send_message(message.chat.id, 'Сотрудник не найден.')
-        return
-    staff_info_list = []
-    for row in rows:
-        staff_data = {
-            'ФИО': row[1],
-            'Должность': row[3],
-            'Табельный номер': row[2],
-            'Дата устройства': row[4],
-            'День рождения': row[5],
-            'Номер телефона': convert_phone_number(row[6])
-        }
-        staff_info = '\n'.join([f'{key}: {value}' for key, value in staff_data.items()])
-        staff_info_list.append(staff_info)
-    # Объединяем информацию о всех сотрудниках в одно сообщение
-    all_staff_info = '\n\n'.join(staff_info_list)
-    bot.send_message(message.chat.id,
-                     f'Информация о сотруднике:\n{all_staff_info}')
-
+    try:
+        find = message.text.strip()
+        # rows = db_read('''
+        #     SELECT * FROM staff WHERE name = ?;
+        # ''', (find,))
+        rows = db_read('''
+                SELECT * FROM staff WHERE name LIKE ?;
+            ''', (f'{find}%',))
+        if not rows:
+            bot.send_message(message.chat.id, 'Сотрудник не найден.')
+            return
+        staff_info_list = []
+        for row in rows:
+            staff_data = {
+                'ФИО': row[1],
+                'Должность': row[3],
+                'Табельный номер': row[2],
+                'Дата устройства': row[4],
+                'День рождения': row[5],
+                'Номер телефона': convert_phone_number(row[6])
+            }
+            staff_info = '\n'.join([f'{key}: {value}' for key, value in staff_data.items()])
+            staff_info_list.append(staff_info)
+        # Объединяем информацию о всех сотрудниках в одно сообщение
+        all_staff_info = '\n\n'.join(staff_info_list)
+        bot.send_message(message.chat.id,
+                         f'Информация о сотруднике:\n{all_staff_info}')
+    except Exception as e:
+        print(f'Ошибка получения информации о сотрудниках: {e}')
 
 def edit_staff(message):
     """Обновление сотрудника."""
