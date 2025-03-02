@@ -22,6 +22,33 @@ waiting_users = []
 staff_data = {}
 # staff_edit_id = []
 staff_edit_data = {}
+reset_timers = {}
+
+
+
+def db_record(request, var, many=True):
+    """Сохраняем данные в базу данных."""
+    con = sqlite3.connect('staff.db')
+    cur = con.cursor()
+    if many:
+        cur.executemany(request, var)
+    else:
+        cur.execute(request, var)
+    con.commit()
+    con.close()
+
+
+def db_read(request, var=None):
+    """Читаем данные из базы данных."""
+    con = sqlite3.connect('staff.db')
+    cur = con.cursor()
+    if var is not None:
+        cur.execute(request, var)
+    else:
+        cur.execute(request)
+    rows = cur.fetchall()
+    con.close()
+    return rows
 
 
 def save_user(chat_id, full_name):
@@ -64,6 +91,37 @@ def crud_staff(message):
                          "Вы не являетесь администратором!")
 
 
+@bot.message_handler(commands=['cancel'])
+def cancel_staff(message):
+    print('EXITING')
+    if not isinstance(message, int):
+        chat_id = message.chat.id
+    else:
+        chat_id = message
+    if chat_id in staff_data:
+        del staff_data[chat_id]  # Удаляем данные о сотруднике
+        if chat_id in reset_timers:
+            reset_timers[chat_id].cancel()
+            del reset_timers[chat_id]  # Удаляем таймер
+        bot.send_message(chat_id,
+                         "Ввод отменен. Вы можете ввести любую команду.")
+    else:
+        bot.send_message(chat_id, "Нет активного ввода для отмены.")
+
+
+
+
+# def reset_input(chat_id):
+#     """Функция сброса ввода данных."""
+#     if chat_id in staff_data:
+#         bot.send_message(chat_id, "Время ожидания истекло. Ввод данных сброшен.")
+#         del staff_data[chat_id]  # Удаляем данные о сотруднике
+#         if chat_id in reset_timers:
+#             del reset_timers[chat_id]  # Удаляем таймер
+#     return
+
+
+
 @bot.callback_query_handler(func=lambda call: True)
 def callback_query(call):
     """Обработка нажатий кнопок."""
@@ -90,7 +148,12 @@ def callback_query(call):
                                           reply_markup=None)
             staff_data[call.message.chat.id] = {}  # Инициируем словарь данных
             bot.send_message(call.message.chat.id, "Введите ФИО сотрудника:")
+            chat_id = call.message.chat.id
+            reset_timers[chat_id] = threading.Timer(10.0, cancel_staff, [chat_id])  # Устанавливаем таймер
+            reset_timers[chat_id].start()
+            print(reset_timers)
             bot.register_next_step_handler(call.message, get_name)
+              # Запускаем таймер
         elif call.data == 'delete':
             bot.send_message(call.message.chat.id,
                              "Введите имя сотрудника для удаления:")
@@ -173,6 +236,7 @@ def get_staff(message):
                          f'Информация о сотруднике:\n{all_staff_info}')
     except Exception as e:
         print(f'Ошибка получения информации о сотрудниках: {e}')
+
 
 def edit_staff(message):
     """Обновление сотрудника."""
@@ -258,16 +322,28 @@ def get_list_staff(call):
 
 def get_name(message, upd=None):
     """Добавление/изменение ФИО."""
+    chat_id = message.chat.id
+    if message.text.strip() == '/cancel':# or chat_id not in reset_timers:
+        return cancel_staff(message)  # Обработка отмены
+    # name = message.text.strip()
+    elif chat_id not in reset_timers:  # Если время на ввод истекло
+    #     # print(reset_timers, '!!!!!!!!!!!!!!!!!!!')
+        return get_staff(message)
+    #     return
+    else:
+        reset_timers[chat_id].cancel()  # Иначе останавливаем таймер
+
+
     name = message.text.strip()
     if len(name.split()) <= 1 or any(i.isdigit() for i in name):
-        bot.send_message(message.chat.id, "Введите корректное ФИО:")
+        bot.send_message(chat_id, "Введите корректное ФИО:")
         bot.register_next_step_handler(message, get_name,
                                        'name' if upd else None)
         return
     if upd:
         return update_field(message, 'name')
-    staff_data[message.chat.id]['name'] = name
-    bot.send_message(message.chat.id, "Введите табельный номер:")
+    staff_data[chat_id]['name'] = name
+    bot.send_message(chat_id, "Введите табельный номер:")
     bot.register_next_step_handler(message, get_tabel_num)
 
 
