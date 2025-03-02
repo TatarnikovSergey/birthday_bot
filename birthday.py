@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 import telebot
 from dotenv import load_dotenv
 
+
 from keyboarbs import keyboard_start, keyboard_crud, keyboard_staff
 from working_db import db_read, db_write
 
@@ -23,32 +24,6 @@ staff_data = {}
 # staff_edit_id = []
 staff_edit_data = {}
 reset_timers = {}
-
-
-
-def db_record(request, var, many=True):
-    """Сохраняем данные в базу данных."""
-    con = sqlite3.connect('staff.db')
-    cur = con.cursor()
-    if many:
-        cur.executemany(request, var)
-    else:
-        cur.execute(request, var)
-    con.commit()
-    con.close()
-
-
-def db_read(request, var=None):
-    """Читаем данные из базы данных."""
-    con = sqlite3.connect('staff.db')
-    cur = con.cursor()
-    if var is not None:
-        cur.execute(request, var)
-    else:
-        cur.execute(request)
-    rows = cur.fetchall()
-    con.close()
-    return rows
 
 
 def save_user(chat_id, full_name):
@@ -93,7 +68,7 @@ def crud_staff(message):
 
 @bot.message_handler(commands=['cancel'])
 def cancel_staff(message):
-    print('EXITING')
+    """Отмена ввода данных."""
     if not isinstance(message, int):
         chat_id = message.chat.id
     else:
@@ -109,47 +84,35 @@ def cancel_staff(message):
         bot.send_message(chat_id, "Нет активного ввода для отмены.")
 
 
-
-
-# def reset_input(chat_id):
-#     """Функция сброса ввода данных."""
-#     if chat_id in staff_data:
-#         bot.send_message(chat_id, "Время ожидания истекло. Ввод данных сброшен.")
-#         del staff_data[chat_id]  # Удаляем данные о сотруднике
-#         if chat_id in reset_timers:
-#             del reset_timers[chat_id]  # Удаляем таймер
-#     return
-
-
-
 @bot.callback_query_handler(func=lambda call: True)
 def callback_query(call):
     """Обработка нажатий кнопок."""
     try:
+        chat_id = call.message.chat.id
         if call.data == 'yes':  # Если кнопка "Зарегистрировать" была нажата
-            chat_id, full_name = waiting_users.pop(0)
-            save_user(chat_id, full_name)
-            bot.send_message(chat_id,
+            chat_id_user, full_name = waiting_users.pop(0)
+            save_user(chat_id_user, full_name)
+            bot.send_message(chat_id_user,
                              f'Вы зарегистрированы как {full_name}. '
                              f'Бот напомнит Вам о дне рождения '
                              f'сотрудника за 3 дня!')
             bot.send_message(ADMIN_CHAT,
                              f'Пользователь {full_name} зарегистрирован!')
         elif call.data == 'no':  # Если кнопка "Отказать" была нажата
-            chat_id, full_name = waiting_users.pop(0)  # Достаем пользователя
-            bot.send_message(chat_id,
+            chat_id_user, full_name = waiting_users.pop(0)  # Достаем пользователя
+            bot.send_message(chat_id_user,
                              f'Вам отказано в регистрации как {full_name}, '
                              f'поскольку Вы не являетесь сотрудником.')
         elif call.data == 'add':
-            bot.send_message(call.message.chat.id,
-                             "Добавление нового сотрудника:")
-            bot.edit_message_reply_markup(chat_id=call.message.chat.id,
+            bot.send_message(chat_id, "Добавление нового сотрудника:")
+            bot.edit_message_reply_markup(chat_id=chat_id,
                                           message_id=call.message.message_id,
                                           reply_markup=None)
             staff_data[call.message.chat.id] = {}  # Инициируем словарь данных
             bot.send_message(call.message.chat.id, "Введите ФИО сотрудника:")
-            chat_id = call.message.chat.id
-            reset_timers[chat_id] = threading.Timer(10.0, cancel_staff, [chat_id])  # Устанавливаем таймер
+
+            reset_timers[chat_id] = threading.Timer(10.0, cancel_staff, [
+                chat_id])  # Устанавливаем таймер
             reset_timers[chat_id].start()
             print(reset_timers)
             bot.register_next_step_handler(call.message, get_name)
@@ -160,6 +123,9 @@ def callback_query(call):
             bot.edit_message_reply_markup(chat_id=call.message.chat.id,
                                           message_id=call.message.message_id,
                                           reply_markup=None)
+            reset_timers[chat_id] = threading.Timer(10.0, cancel_staff, [
+                chat_id])  # Устанавливаем таймер
+            reset_timers[chat_id].start()
             bot.register_next_step_handler(call.message, del_staff)
         elif call.data == 'list_staff':
             get_list_staff(call)
@@ -323,16 +289,13 @@ def get_list_staff(call):
 def get_name(message, upd=None):
     """Добавление/изменение ФИО."""
     chat_id = message.chat.id
-    if message.text.strip() == '/cancel':# or chat_id not in reset_timers:
-        return cancel_staff(message)  # Обработка отмены
-    # name = message.text.strip()
-    elif chat_id not in reset_timers:  # Если время на ввод истекло
-    #     # print(reset_timers, '!!!!!!!!!!!!!!!!!!!')
+    if message.text.strip() == '/cancel':  # Если нажали отмену:
+        return cancel_staff(message)  # обработка отмены
+    elif chat_id not in reset_timers:  # Если время на ввод истекло:
         return get_staff(message)
-    #     return
+        # return cancel_staff(message)# следующий ввод - поиск сотрудника
     else:
         reset_timers[chat_id].cancel()  # Иначе останавливаем таймер
-
 
     name = message.text.strip()
     if len(name.split()) <= 1 or any(i.isdigit() for i in name):
