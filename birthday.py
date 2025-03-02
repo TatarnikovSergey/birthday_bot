@@ -497,9 +497,7 @@ def send_message(bot, message):
                         f"при отправке сообщения в чат {chat_id}")
 
 
-def main():
-    # Запускаем бота в отдельном потоке
-    threading.Thread(target=bot.polling).start()
+def get_birthdays():
     last_run_time = datetime.now() - timedelta(days=1)
     while True:
         try:
@@ -515,6 +513,15 @@ def main():
         except Exception as e:
             bot.send_message(ADMIN_CHAT, f"Произошла ошибка: {e}")
             time.sleep(60)  # Ждем 1 минуту перед повторной попыткой
+
+
+def main():
+    # Запускаем бота в отдельном потоке
+    threading.Thread(target=get_birthdays).start()
+    try:
+        bot.infinity_polling()
+    except Exception as e:
+        bot.send_message(ADMIN_CHAT, f"Произошла ошибка: {e}")
 
 
 if __name__ == "__main__":
