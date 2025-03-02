@@ -6,7 +6,9 @@ from datetime import datetime, timedelta
 
 import telebot
 from dotenv import load_dotenv
-from telebot import types
+
+from keyboarbs import keyboard_start, keyboard_crud, keyboard_staff
+from working_db import db_read, db_write
 
 load_dotenv()
 
@@ -21,56 +23,11 @@ staff_data = {}
 # staff_edit_id = []
 staff_edit_data = {}
 
-# создаем клавиатуры
-keyboard_start = types.InlineKeyboardMarkup()
-keyboard_crud = types.InlineKeyboardMarkup()
-keyboard_staff = types.InlineKeyboardMarkup()
-# создаем кнопки
-button1 = types.InlineKeyboardButton('Зарегистрировать', callback_data='yes')
-button2 = types.InlineKeyboardButton('Отказать', callback_data='no')
-button3 = types.InlineKeyboardButton('Добавить', callback_data='add')
-button4 = types.InlineKeyboardButton('Изменить', callback_data='edit')
-button5 = types.InlineKeyboardButton('Удалить', callback_data='delete')
-button6 = types.InlineKeyboardButton('Список сотрудников',
-                                     callback_data='list_staff')
-button7 = types.InlineKeyboardButton('ФИО', callback_data='fio')
-button8 = types.InlineKeyboardButton('Должность', callback_data='position')
-button9 = types.InlineKeyboardButton('Номер телефона', callback_data='phone')
-# добавляем кнопки в клавиатуру
-keyboard_start.add(button1, button2)
-keyboard_crud.add(button3, button4, button5, button6)
-keyboard_staff.add(button7, button8, button9)
-
-
-def db_record(request, var, many=True):
-    """Сохраняем данные в базу данных."""
-    con = sqlite3.connect('staff.db')
-    cur = con.cursor()
-    if many:
-        cur.executemany(request, var)
-    else:
-        cur.execute(request, var)
-    con.commit()
-    con.close()
-
-
-def db_read(request, var=None):
-    """Читаем данные из базы данных."""
-    con = sqlite3.connect('staff.db')
-    cur = con.cursor()
-    if var is not None:
-        cur.execute(request, var)
-    else:
-        cur.execute(request)
-    rows = cur.fetchall()
-    con.close()
-    return rows
-
 
 def save_user(chat_id, full_name):
     """Сохраняем пользователя в базу данных"""
     try:
-        db_record('''
+        db_write('''
     INSERT OR IGNORE INTO users (chat_id, full_name) VALUES (?, ?);
     ''', (chat_id, full_name), many=False)
     except Exception as e:
@@ -257,7 +214,7 @@ def update_field(message, field_db_name):
             UPDATE staff SET {field_db_name} = ? WHERE id = ?;
         '''
         params = (new_value, staff_edit_id)
-        db_record(query, params, many=False)
+        db_write(query, params, many=False)
         bot.send_message(message.chat.id, "Данные успешно обновлены.")
         staff_edit_data.clear()
         staff_edit_id = None
@@ -388,7 +345,7 @@ def save_staff(chat_id):
                 data['date_of_employment'], data['day_of_birth'],
                 data['phone_number'])]
     try:
-        db_record('''
+        db_write('''
                     INSERT INTO staff VALUES (?,?,?,?,?,?,?);
                 ''', db_data)
         bot.send_message(chat_id, f'Сотрудник {data["name"]} добавлен успешно')
@@ -411,7 +368,7 @@ def del_staff(message):
             bot.send_message(message.chat.id, "Сотрудник не найден.")
             return
         staff_id = rows[0][0]
-        db_record('''DELETE FROM staff WHERE id = ?;''',
+        db_write('''DELETE FROM staff WHERE id = ?;''',
                   (staff_id,), many=False)
         bot.send_message(message.chat.id, f"Сотрудник {staff_name} удален!")
         bot.send_message(ADMIN_CHAT, f'Сотрудник {staff_name} удален!')
