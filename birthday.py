@@ -281,8 +281,9 @@ def get_list_staff(call):
                 fio = staff[0].split()
                 short_fio = f'{fio[0]} {fio[1][0]}.' \
                             f'{fio[2][0] if len(fio) >= 3 else None}.'
-                staff_message += f'{short_fio}\n ' \
-                                 f'{convert_phone_number(staff[2])}\n \n'
+                staff_message += f'{short_fio} ' \
+                                 f'{convert_phone_number(staff[2])}\n'
+            staff_message += f'Всего сотрудников {len(staff_list)}'
         else:
             staff_message = 'Список сотрудников пуст.'
             # Разбиваем сообщение на части, если оно слишком длинное
