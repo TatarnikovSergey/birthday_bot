@@ -1,4 +1,13 @@
+import os
 import sqlite3
+
+from dotenv import load_dotenv
+
+from send_message import send_message
+
+load_dotenv()
+
+ADMIN_CHAT = os.getenv('ADMIN_CHAT_ID')
 
 
 def db_write(request, var, many=True):
@@ -24,3 +33,13 @@ def db_read(request, var=None):
     rows = cur.fetchall()
     con.close()
     return rows
+
+
+def save_user(chat_id, full_name):
+    """Сохраняем пользователя в базу данных"""
+    try:
+        db_write('''
+    INSERT OR IGNORE INTO users (chat_id, full_name) VALUES (?, ?);
+    ''', (chat_id, full_name), many=False)
+    except Exception as e:
+        send_message(ADMIN_CHAT, f'Ошибка добавления пользователя: {e}')

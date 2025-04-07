@@ -1,5 +1,6 @@
 from telebot import types
 
+
 # создаем клавиатуры
 keyboard_start = types.InlineKeyboardMarkup()
 keyboard_crud = types.InlineKeyboardMarkup()

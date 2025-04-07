@@ -1,5 +1,4 @@
 import os
-import sqlite3
 import threading
 import time
 from datetime import datetime, timedelta
@@ -7,33 +6,21 @@ from datetime import datetime, timedelta
 import telebot
 from dotenv import load_dotenv
 
-
 from keyboarbs import keyboard_start, keyboard_crud, keyboard_staff
-from working_db import db_read, db_write
+from send_message import send_message
+from working_db import db_read, db_write, save_user
 
 load_dotenv()
 
 ADMIN_CHAT = os.getenv('ADMIN_CHAT_ID')
 API_TOKEN = os.getenv('T_TOKEN')
 bot = telebot.TeleBot(API_TOKEN)
-# current_time = datetime.now()  # .time()
 
 stacked = []
 waiting_users = []
 staff_data = {}
-# staff_edit_id = []
 staff_edit_data = {}
 reset_timers = {}
-
-
-def save_user(chat_id, full_name):
-    """Сохраняем пользователя в базу данных"""
-    try:
-        db_write('''
-    INSERT OR IGNORE INTO users (chat_id, full_name) VALUES (?, ?);
-    ''', (chat_id, full_name), many=False)
-    except Exception as e:
-        bot.send_message(ADMIN_CHAT, f'Ошибка добавления пользователя: {e}')
 
 
 @bot.message_handler(commands=['start'])
@@ -84,6 +71,10 @@ def cancel_staff(message):
         bot.send_message(chat_id, "Нет активного ввода для отмены.")
 
 
+
+
+
+
 @bot.callback_query_handler(func=lambda call: True)
 def callback_query(call):
     """Обработка нажатий кнопок."""
@@ -99,7 +90,8 @@ def callback_query(call):
             bot.send_message(ADMIN_CHAT,
                              f'Пользователь {full_name} зарегистрирован!')
         elif call.data == 'no':  # Если кнопка "Отказать" была нажата
-            chat_id_user, full_name = waiting_users.pop(0)  # Достаем пользователя
+            chat_id_user, full_name = waiting_users.pop(
+                0)  # Достаем пользователя
             bot.send_message(chat_id_user,
                              f'Вам отказано в регистрации как {full_name}, '
                              f'поскольку Вы не являетесь сотрудником.')
@@ -111,19 +103,19 @@ def callback_query(call):
             staff_data[call.message.chat.id] = {}  # Инициируем словарь данных
             bot.send_message(call.message.chat.id, "Введите ФИО сотрудника:")
 
-            reset_timers[chat_id] = threading.Timer(10.0, cancel_staff, [
+            reset_timers[chat_id] = threading.Timer(20.0, cancel_staff, [
                 chat_id])  # Устанавливаем таймер
             reset_timers[chat_id].start()
             print(reset_timers)
             bot.register_next_step_handler(call.message, get_name)
-              # Запускаем таймер
+            # Запускаем таймер
         elif call.data == 'delete':
             bot.send_message(call.message.chat.id,
                              "Введите имя сотрудника для удаления:")
             bot.edit_message_reply_markup(chat_id=call.message.chat.id,
                                           message_id=call.message.message_id,
                                           reply_markup=None)
-            reset_timers[chat_id] = threading.Timer(10.0, cancel_staff, [
+            reset_timers[chat_id] = threading.Timer(20.0, cancel_staff, [
                 chat_id])  # Устанавливаем таймер
             reset_timers[chat_id].start()
             bot.register_next_step_handler(call.message, del_staff)
@@ -139,6 +131,10 @@ def callback_query(call):
                                           message_id=call.message.message_id,
                                           reply_markup=None)
             staff_data[call.message.chat.id] = {}
+            reset_timers[chat_id] = threading.Timer(20.0, cancel_staff, [
+                chat_id])  # Устанавливаем таймер
+            reset_timers[chat_id].start()
+            print(reset_timers)
             bot.register_next_step_handler(call.message, edit_staff)
         elif call.data == 'fio':
             bot.send_message(call.message.chat.id,
@@ -194,7 +190,8 @@ def get_staff(message):
                 'День рождения': row[5],
                 'Номер телефона': convert_phone_number(row[6])
             }
-            staff_info = '\n'.join([f'{key}: {value}' for key, value in staff_data.items()])
+            staff_info = '\n'.join(
+                [f'{key}: {value}' for key, value in staff_data.items()])
             staff_info_list.append(staff_info)
         # Объединяем информацию о всех сотрудниках в одно сообщение
         all_staff_info = '\n\n'.join(staff_info_list)
@@ -206,6 +203,8 @@ def get_staff(message):
 
 def edit_staff(message):
     """Обновление сотрудника."""
+    if cancel_insert(message, reset_timers) is not None:
+        return  # Если была отмена ввода - выходим
     try:
         staff_name = message.text.strip()
         rows = db_read('''
@@ -233,7 +232,7 @@ def edit_staff(message):
     except Exception as e:
         bot.send_message(message.chat.id,
                          f"Произошла ошибка при обновлении: {e}")
-
+    reset_timers[message.chat.id].cancel()  # Останавливаем таймер
 
 def update_field(message, field_db_name):
     """Обновление поля сотрудника."""
@@ -261,7 +260,7 @@ def get_list_staff(call):
                 FROM staff
                 ORDER BY name ASC;
                 ''')
-         # Форматируем список сотрудников в строку по формату: Фамилия И.О.
+        # Форматируем список сотрудников в строку по формату: Фамилия И.О.
         if staff_list:
             staff_message = 'Список сотрудников:\n'
             for staff in staff_list:
@@ -286,31 +285,38 @@ def get_list_staff(call):
                          f'Ошибка получения списка сотрудников: {e}')
 
 
-def get_name(message, upd=None):
-    """Добавление/изменение ФИО."""
+def cancel_insert(message, reset_timers):
+    """Обработка отмены операции ввода данных или истечения времени."""
     chat_id = message.chat.id
     if message.text.strip() == '/cancel':  # Если нажали отмену:
-        return cancel_staff(message)  # обработка отмены
+        return cancel_staff(message), True  # обработка отмены
     elif chat_id not in reset_timers:  # Если время на ввод истекло:
-        return get_staff(message)
-        # return cancel_staff(message)# следующий ввод - поиск сотрудника
-    else:
-        reset_timers[chat_id].cancel()  # Иначе останавливаем таймер
+        return get_staff(message) if message.text[0] != '/' \
+            else crud_staff(message), True
+    # else:
+    #     reset_timers[chat_id].cancel()  # Иначе останавливаем таймер
 
+
+def get_name(message, upd=None):
+    """Добавление/изменение ФИО."""
+    if cancel_insert(message, reset_timers) is not None:
+        return  # Если была отмена ввода - выходим
     name = message.text.strip()
     if len(name.split()) <= 1 or any(i.isdigit() for i in name):
-        bot.send_message(chat_id, "Введите корректное ФИО:")
+        bot.send_message(message.chat.id, "Введите корректное ФИО:")
         bot.register_next_step_handler(message, get_name,
                                        'name' if upd else None)
         return
     if upd:
         return update_field(message, 'name')
-    staff_data[chat_id]['name'] = name
-    bot.send_message(chat_id, "Введите табельный номер:")
+    staff_data[message.chat.id]['name'] = name
+    bot.send_message(message.chat.id, "Введите табельный номер:")
     bot.register_next_step_handler(message, get_tabel_num)
 
 
 def get_tabel_num(message):
+    if cancel_insert(message, reset_timers) is not None:
+        return  # Если была отмена ввода - выходим
     if not message.text.isdigit():
         bot.send_message(message.chat.id,
                          "Введите корректный табельный номер (число):")
@@ -322,6 +328,8 @@ def get_tabel_num(message):
 
 
 def get_position(message):
+    if cancel_insert(message, reset_timers) is not None:
+        return  # Если была отмена ввода - выходим
     staff_data[message.chat.id]['position'] = message.text
     bot.send_message(message.chat.id,
                      'Введите дату трудоустройства в формате "ДД.ММ.ГГГГ":')
@@ -336,7 +344,8 @@ def convert_date_format(date_str):
 
 
 def get_date_of_employment(message):
-    # Пример простой проверки формата даты
+    if cancel_insert(message, reset_timers) is not None:
+        return  # Если была отмена ввода - выходим
     try:
         date_of_employment = convert_date_format(message.text)
         staff_data[message.chat.id]['date_of_employment'] = date_of_employment
@@ -350,7 +359,8 @@ def get_date_of_employment(message):
 
 
 def get_day_of_birth(message):
-    # Пример простой проверки формата даты
+    if cancel_insert(message, reset_timers) is not None:
+        return  # Если была отмена ввода - выходим
     try:
         day_of_birth = convert_date_format(message.text)
         staff_data[message.chat.id]['day_of_birth'] = day_of_birth
@@ -364,7 +374,8 @@ def get_day_of_birth(message):
 
 
 def get_phone_number(message, upd=None):
-    # Простой пример проверки формата номера телефона
+    if cancel_insert(message, reset_timers) is not None:
+        return  # Если была отмена ввода - выходим
     if not message.text.isdigit() or len(message.text) < 10:
         bot.send_message(message.chat.id,
                          "Пожалуйста, введите корректный номер телефона."
@@ -376,6 +387,7 @@ def get_phone_number(message, upd=None):
         return update_field(message, 'phone_number')
     staff_data[message.chat.id]['phone_number'] = message.text
     save_staff(message.chat.id)  # Сохраняем данные в базе данных
+    reset_timers[message.chat.id].cancel()  # Останавливаем таймер
 
 
 def save_staff(chat_id):
@@ -384,36 +396,34 @@ def save_staff(chat_id):
                 data['date_of_employment'], data['day_of_birth'],
                 data['phone_number'])]
     try:
-        db_write('''
-                    INSERT INTO staff VALUES (?,?,?,?,?,?,?);
-                ''', db_data)
-        bot.send_message(chat_id, f'Сотрудник {data["name"]} добавлен успешно')
-        bot.send_message(ADMIN_CHAT, f'Добавлен сотрудник - {data["name"]}')
+        db_write('''INSERT INTO staff VALUES (?,?,?,?,?,?,?); ''', db_data)
+        send_message(chat_id, f'Сотрудник {data["name"]} добавлен успешно')
+        send_message(ADMIN_CHAT, f'Добавлен сотрудник - {data["name"]}')
     except Exception as e:
-        bot.send_message(chat_id,
-                         f'Ошибка при добавлении сотрудника: {e}')
+        send_message(chat_id, f'Ошибка при добавлении сотрудника: {e}')
     finally:
         staff_data.clear()
 
 
 def del_staff(message):
+    if cancel_insert(message, reset_timers) is not None:
+        return  # Если была отмена ввода - выходим
     try:
         staff_name = message.text
-        rows = db_read('''
-            SELECT id FROM staff WHERE name = ?;
-        ''', (staff_name,))
-
+        rows = db_read('''SELECT id FROM staff WHERE name = ?;''',
+                       (staff_name,))
         if not rows:
-            bot.send_message(message.chat.id, "Сотрудник не найден.")
+            send_message(message.chat.id, "Сотрудник не найден.")
             return
         staff_id = rows[0][0]
         db_write('''DELETE FROM staff WHERE id = ?;''',
-                  (staff_id,), many=False)
-        bot.send_message(message.chat.id, f"Сотрудник {staff_name} удален!")
-        bot.send_message(ADMIN_CHAT, f'Сотрудник {staff_name} удален!')
+                 (staff_id,), many=False)
+        send_message(message.chat.id, f"Сотрудник {staff_name} удален!")
+        send_message(ADMIN_CHAT, f'Сотрудник {staff_name} удален!')
     except Exception as e:
-        bot.send_message(message.chat.id,
-                         f'Ошибка при удалении сотрудника: {e}')
+        send_message(message.chat.id, f'Ошибка при удалении сотрудника: {e}')
+    reset_timers[message.chat.id].cancel()  # Останавливаем таймер
+
 
 
 def convert_phone_number(phone_number):
@@ -445,7 +455,7 @@ def check_birthdays():
                     f'Ему исполнится {age}!'
                     # f' Поздравить - {phone_number}'
                 )
-                stacked.append(' '.join(birth))# Объединяем строки в одну
+                stacked.append(' '.join(birth))  # Объединяем строки в одну
 
 
 def today_birthday():
@@ -469,28 +479,20 @@ def today_birthday():
                 f'Ему исполняется {age}!'
                 f' Поздравить: <b>{phone_number}</b>'
             )
-            stacked.append(' '.join(birth))# Объединяем строки в одну
+            stacked.append(' '.join(birth))  # Объединяем строки в одну
 
 
-def send_message(bot, message):
+def birthday_messages(message):
     # Получаем всех пользователей для отправки сообщений
     user_ids = db_read('SELECT chat_id FROM users')
-    if datetime.now().weekday() == 0:    # if current_time.hour == 20:
-        bot.send_message(ADMIN_CHAT, f'Кол-во зарегистрированных пользователей'
+    if datetime.now().weekday() == 0:  # if current_time.hour == 20:
+        send_message(ADMIN_CHAT, f'Кол-во зарегистрированных пользователей'
                                      f' - {len(user_ids)}')
     if stacked:  # Если есть сообщения для отправки
         for chat_id in user_ids:
             chat_id = chat_id[0]  # Извлекаем chat_id из кортежа
             for message in stacked:
-                try:
-                    bot.send_message(chat_id=chat_id, text=message,
-                                     parse_mode='HTML')
-                    time.sleep(1)  # Задержка между отправкой сообщений
-                except Exception as e:
-                    bot.send_message(
-                        ADMIN_CHAT,
-                        f"Произошла ошибка: {e} "
-                        f"при отправке сообщения в чат {chat_id}")
+                send_message(chat_id, message)
 
 
 def get_birthdays():
@@ -498,16 +500,16 @@ def get_birthdays():
     while True:
         try:
             current_time = datetime.now()
-            if current_time - last_run_time >= timedelta(days=1) and \
-                    current_time.hour == 9 and current_time.minute >= 55:
+            if current_time - last_run_time >= timedelta(days=1):# and \
+                    #current_time.hour == 9 and current_time.minute >= 55:
                 last_run_time = current_time  # Обновляем время последнего запуска
                 today_birthday()
                 check_birthdays()
-                send_message(bot, stacked)  # Отправляем сообщения
+                birthday_messages(stacked)  # Отправляем сообщения
                 stacked.clear()  # Очищаем стек сообщений
             time.sleep(60)  # Ждем +-24 часа перед следующей проверкой
         except Exception as e:
-            bot.send_message(ADMIN_CHAT, f"Произошла ошибка: {e}")
+            send_message(ADMIN_CHAT, f"Произошла ошибка: {e}")
             time.sleep(60)  # Ждем 1 минуту перед повторной попыткой
 
 
