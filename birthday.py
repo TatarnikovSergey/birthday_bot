@@ -1,13 +1,15 @@
+import logging
 import os
+import sys
 import threading
 import time
 from datetime import datetime, timedelta
 
 import telebot
+from telebot import apihelper
 from dotenv import load_dotenv
 
 from keyboarbs import keyboard_start, keyboard_crud, keyboard_staff
-from send_message import send_message
 from working_db import db_read, db_write, save_user
 
 load_dotenv()
@@ -16,11 +18,34 @@ ADMIN_CHAT = os.getenv('ADMIN_CHAT_ID')
 API_TOKEN = os.getenv('T_TOKEN')
 bot = telebot.TeleBot(API_TOKEN)
 
+logging.basicConfig(
+    level=logging.WARNING,
+    filename='birthday.log',
+    format='%(asctime)s, %(levelname)s, %(message)s, %(funcName)s'
+)
+logger = logging.getLogger(__name__)
+handler = logging.StreamHandler(stream=sys.stdout)
+logger.addHandler(handler)
+
 stacked = []
 waiting_users = []
 staff_data = {}
 staff_edit_data = {}
 reset_timers = {}
+
+
+def send_message(chat_id, message, reply_markup=None):
+    """Отправка сообщений в чат."""
+    try:
+        bot.send_message(chat_id=chat_id, text=message, parse_mode='HTML',
+                         reply_markup=reply_markup)
+        time.sleep(1)  # Задержка между отправкой сообщений
+    except apihelper.ApiException as e:
+        bot.send_message(ADMIN_CHAT, f"Произошла ошибка: {e} "
+                                     f"при отправке сообщения в чат {chat_id}")
+        logger.error(f'Ошибка {e} отправки сообщения {message} '
+                     f'{reply_markup if reply_markup else None}')
+
 
 
 @bot.message_handler(commands=['start'])
@@ -29,28 +54,27 @@ def say_hi(message):
     try:
         chat_id = message.chat.id
         full_name = message.from_user.full_name
-        bot.send_message(chat_id=chat_id,
-                         text=f'Приветствую Вас {full_name}. Это закрытый  Бот'
+        send_message(chat_id, f'Приветствую Вас {full_name}. Это закрытый  Бот'
                               ' только для сотрудников ОКЭ. Если Вы не '
                               'сотрудник - Вам будет отказано в регистрации!')
-        bot.send_message(ADMIN_CHAT,
-                         f'Зарегистрировать пользователя {full_name}?',
-                         reply_markup=keyboard_start)
+        send_message(ADMIN_CHAT, f'Зарегистрировать пользователя {full_name}?',
+                     reply_markup=keyboard_start)
         waiting_users.append((chat_id, full_name))
     except Exception as e:
-        bot.send_message(ADMIN_CHAT,
-                         f'Ошибка при получении данных о пользователе: {e}')
+        send_message(ADMIN_CHAT,
+                     f'Ошибка при получении данных о пользователе: {e}')
+        logger.error(f'Ошибка {e} при получении данных о пользователе'
+                     f'в процессе  обработке сообщения {message}')
 
 
 @bot.message_handler(commands=['crud'])
 def crud_staff(message):
     """Отправляем кнопки CRUD."""
     if int(message.chat.id) == int(ADMIN_CHAT):
-        bot.send_message(message.chat.id, "CRUD-операции с сотрудниками:",
-                         reply_markup=keyboard_crud)
+        send_message(message.chat.id, "CRUD-операции с сотрудниками:",
+                     reply_markup=keyboard_crud)
     else:
-        bot.send_message(message.chat.id,
-                         "Вы не являетесь администратором!")
+        send_message(message.chat.id, "Вы не являетесь администратором!")
 
 
 @bot.message_handler(commands=['cancel'])
@@ -65,14 +89,9 @@ def cancel_staff(message):
         if chat_id in reset_timers:
             reset_timers[chat_id].cancel()
             del reset_timers[chat_id]  # Удаляем таймер
-        bot.send_message(chat_id,
-                         "Ввод отменен. Вы можете ввести любую команду.")
+        send_message(chat_id, "Ввод отменен. Вы можете ввести любую команду.")
     else:
-        bot.send_message(chat_id, "Нет активного ввода для отмены.")
-
-
-
-
+        send_message(chat_id, "Нет активного ввода для отмены.")
 
 
 @bot.callback_query_handler(func=lambda call: True)
@@ -83,25 +102,21 @@ def callback_query(call):
         if call.data == 'yes':  # Если кнопка "Зарегистрировать" была нажата
             chat_id_user, full_name = waiting_users.pop(0)
             save_user(chat_id_user, full_name)
-            bot.send_message(chat_id_user,
-                             f'Вы зарегистрированы как {full_name}. '
-                             f'Бот напомнит Вам о дне рождения '
-                             f'сотрудника за 3 дня!')
-            bot.send_message(ADMIN_CHAT,
-                             f'Пользователь {full_name} зарегистрирован!')
+            send_message(chat_id_user, f'Вы зарегистрированы как {full_name}. '
+                                       f'Бот напомнит Вам о дне рождения '
+                                       f'сотрудника за 3 дня!')
+            send_message(ADMIN_CHAT,
+                         f'Пользователь {full_name} зарегистрирован!')
         elif call.data == 'no':  # Если кнопка "Отказать" была нажата
             chat_id_user, full_name = waiting_users.pop(
                 0)  # Достаем пользователя
-            bot.send_message(chat_id_user,
-                             f'Вам отказано в регистрации как {full_name}, '
-                             f'поскольку Вы не являетесь сотрудником.')
+            send_message(chat_id_user,
+                         f'Вам отказано в регистрации как {full_name}, '
+                         f'поскольку Вы не являетесь сотрудником.')
         elif call.data == 'add':
-            bot.send_message(chat_id, "Добавление нового сотрудника:")
-            bot.edit_message_reply_markup(chat_id=chat_id,
-                                          message_id=call.message.message_id,
-                                          reply_markup=None)
-            staff_data[call.message.chat.id] = {}  # Инициируем словарь данных
-            bot.send_message(call.message.chat.id, "Введите ФИО сотрудника:")
+            send_message(chat_id, "Добавление нового сотрудника:")
+            staff_data[chat_id] = {}  # Инициируем словарь данных
+            send_message(chat_id, "Введите ФИО сотрудника:")
 
             reset_timers[chat_id] = threading.Timer(20.0, cancel_staff, [
                 chat_id])  # Устанавливаем таймер
@@ -110,26 +125,15 @@ def callback_query(call):
             bot.register_next_step_handler(call.message, get_name)
             # Запускаем таймер
         elif call.data == 'delete':
-            bot.send_message(call.message.chat.id,
-                             "Введите имя сотрудника для удаления:")
-            bot.edit_message_reply_markup(chat_id=call.message.chat.id,
-                                          message_id=call.message.message_id,
-                                          reply_markup=None)
+            send_message(chat_id, "Введите имя сотрудника для удаления:")
             reset_timers[chat_id] = threading.Timer(20.0, cancel_staff, [
                 chat_id])  # Устанавливаем таймер
             reset_timers[chat_id].start()
             bot.register_next_step_handler(call.message, del_staff)
         elif call.data == 'list_staff':
             get_list_staff(call)
-            bot.edit_message_reply_markup(chat_id=call.message.chat.id,
-                                          message_id=call.message.message_id,
-                                          reply_markup=None)
         elif call.data == 'edit':
-            bot.send_message(call.message.chat.id,
-                             "Введите ФИО сотрудника для редактирования:")
-            bot.edit_message_reply_markup(chat_id=call.message.chat.id,
-                                          message_id=call.message.message_id,
-                                          reply_markup=None)
+            send_message(chat_id, "Введите ФИО сотрудника для редактирования:")
             staff_data[call.message.chat.id] = {}
             reset_timers[chat_id] = threading.Timer(20.0, cancel_staff, [
                 chat_id])  # Устанавливаем таймер
@@ -137,33 +141,24 @@ def callback_query(call):
             print(reset_timers)
             bot.register_next_step_handler(call.message, edit_staff)
         elif call.data == 'fio':
-            bot.send_message(call.message.chat.id,
-                             "Введите новое значение для ФИО:")
-            bot.edit_message_reply_markup(chat_id=call.message.chat.id,
-                                          message_id=call.message.message_id,
-                                          reply_markup=None)
+            send_message(chat_id, "Введите новое значение для ФИО:")
             bot.register_next_step_handler(call.message, get_name, 'name')
         elif call.data == 'position':
-            bot.send_message(call.message.chat.id,
-                             "Введите новое значение для Должности:")
-            bot.edit_message_reply_markup(chat_id=call.message.chat.id,
-                                          message_id=call.message.message_id,
-                                          reply_markup=None)
+            send_message(chat_id, "Введите новое значение для Должности:")
             bot.register_next_step_handler(call.message,
                                            update_field, 'position')
         elif call.data == 'phone':
-            bot.send_message(call.message.chat.id,
-                             "Введите новое значение для Номера телефона:")
-            bot.edit_message_reply_markup(chat_id=call.message.chat.id,
-                                          message_id=call.message.message_id,
-                                          reply_markup=None)
+            send_message(chat_id, "Введите новый номер телефона:")
             bot.register_next_step_handler(call.message,
                                            get_phone_number, 'phone_number')
+        bot.edit_message_reply_markup(chat_id=call.message.chat.id,
+                                      message_id=call.message.message_id,
+                                      reply_markup=None)
         # Удаляем callback_query, чтобы не повторялась
-
         bot.answer_callback_query(callback_query_id=call.id)
-    except Exception as e:
-        bot.send_message(ADMIN_CHAT, f'Ошибка обработки кнопок: {e}')
+    except apihelper.ApiException as e:
+        send_message(ADMIN_CHAT, f'Ошибка обработки кнопок: {e}')
+        logger.error(f'Ошибка {e} обработки кнопок при вызове {call}')
 
 
 @bot.message_handler(func=lambda msg: msg.text)
@@ -171,14 +166,11 @@ def get_staff(message):
     """Инфо о сотруднике."""
     try:
         find = message.text.strip()
-        # rows = db_read('''
-        #     SELECT * FROM staff WHERE name = ?;
-        # ''', (find,))
         rows = db_read('''
                 SELECT * FROM staff WHERE name LIKE ?;
             ''', (f'{find}%',))
         if not rows:
-            bot.send_message(message.chat.id, 'Сотрудник не найден.')
+            send_message(message.chat.id, 'Сотрудник не найден.')
             return
         staff_info_list = []
         for row in rows:
@@ -195,10 +187,11 @@ def get_staff(message):
             staff_info_list.append(staff_info)
         # Объединяем информацию о всех сотрудниках в одно сообщение
         all_staff_info = '\n\n'.join(staff_info_list)
-        bot.send_message(message.chat.id,
-                         f'Информация о сотруднике:\n{all_staff_info}')
+        send_message(message.chat.id,
+                     f'Информация о сотруднике:\n{all_staff_info}')
     except Exception as e:
-        print(f'Ошибка получения информации о сотрудниках: {e}')
+        send_message(ADMIN_CHAT,
+                     f'Ошибка получения информации о сотрудниках: {e}')
 
 
 def edit_staff(message):
@@ -211,7 +204,7 @@ def edit_staff(message):
             SELECT * FROM staff WHERE name LIKE ?;
         ''', (f'{staff_name}%',))
         if not rows:
-            bot.send_message(message.chat.id, "Сотрудник не найден.")
+            send_message(message.chat.id, "Сотрудник не найден.")
             return
         staff_edit_id = rows[0][0]
         staff_edit_data[message.chat.id] = {
@@ -225,17 +218,22 @@ def edit_staff(message):
             'Должность': rows[0][3],
             'Номер телефона': rows[0][6]
         }
-        bot.send_message(message.chat.id,
-                         f"Что вы хотите изменить?:\n{staff_data}\n"
-                         "Выберите поле для редактирования:\n",
-                         reply_markup=keyboard_staff)
+        send_message(message.chat.id,
+                     f"Что вы хотите изменить?:\n{staff_data}\n"
+                     "Выберите поле для редактирования:\n",
+                     reply_markup=keyboard_staff)
     except Exception as e:
-        bot.send_message(message.chat.id,
-                         f"Произошла ошибка при обновлении: {e}")
+        send_message(message.chat.id,
+                     f"Произошла ошибка при обновлении: {e}")
+        logger.error(f'Ошибка {e} при изменении данных о сотруднике'
+                     f'в процессе  обработке сообщения {message}')
     reset_timers[message.chat.id].cancel()  # Останавливаем таймер
+
 
 def update_field(message, field_db_name):
     """Обновление поля сотрудника."""
+    if cancel_insert(message, reset_timers) is not None:
+        return  # Если была отмена ввода - выходим
     try:
         new_value = message.text.strip()
         staff_edit_id = staff_edit_data[message.chat.id]['edit_id']
@@ -244,12 +242,13 @@ def update_field(message, field_db_name):
         '''
         params = (new_value, staff_edit_id)
         db_write(query, params, many=False)
-        bot.send_message(message.chat.id, "Данные успешно обновлены.")
+        send_message(message.chat.id, "Данные успешно обновлены.")
         staff_edit_data.clear()
         staff_edit_id = None
     except Exception as e:
-        bot.send_message(message.chat.id,
-                         f"Произошла ошибка при обновлении: {e}")
+        send_message(message.chat.id, f"Произошла ошибка при обновлении: {e}")
+        logger.error(f'Ошибка {e} при изменении данных сотрудника'
+                     f'в процессе  обработке сообщения {message}')
 
 
 def get_list_staff(call):
@@ -267,22 +266,22 @@ def get_list_staff(call):
                 fio = staff[0].split()
                 short_fio = f'{fio[0]} {fio[1][0]}.' \
                             f'{fio[2][0] if len(fio) >= 3 else None}.'
-                staff_message += f'{short_fio}\n ' \
-                                 f'{convert_phone_number(staff[2])}\n \n'
+                staff_message += f'{short_fio} - ' \
+                                 f'{convert_phone_number(staff[2])}\n'
+            staff_message += f'<b>Всего сотрудников - {len(staff_list)}</b>'
         else:
             staff_message = 'Список сотрудников пуст.'
             # Разбиваем сообщение на части, если оно слишком длинное
         max_length = 4096
         if len(staff_message) > max_length:
             for i in range(0, len(staff_message), max_length):
-                bot.send_message(call.message.chat.id,
-                                 staff_message[i:i + max_length])
+                send_message(call.message.chat.id,
+                             staff_message[i:i + max_length])
         else:
             # Отправляем сообщение с полным списком сотрудников
-            bot.send_message(call.message.chat.id, staff_message)
+            send_message(call.message.chat.id, staff_message)
     except Exception as e:
-        bot.send_message(ADMIN_CHAT,
-                         f'Ошибка получения списка сотрудников: {e}')
+        send_message(ADMIN_CHAT, f'Ошибка получения списка сотрудников: {e}')
 
 
 def cancel_insert(message, reset_timers):
@@ -303,14 +302,14 @@ def get_name(message, upd=None):
         return  # Если была отмена ввода - выходим
     name = message.text.strip()
     if len(name.split()) <= 1 or any(i.isdigit() for i in name):
-        bot.send_message(message.chat.id, "Введите корректное ФИО:")
+        send_message(message.chat.id, "Введите корректное ФИО:")
         bot.register_next_step_handler(message, get_name,
                                        'name' if upd else None)
         return
     if upd:
         return update_field(message, 'name')
     staff_data[message.chat.id]['name'] = name
-    bot.send_message(message.chat.id, "Введите табельный номер:")
+    send_message(message.chat.id, "Введите табельный номер:")
     bot.register_next_step_handler(message, get_tabel_num)
 
 
@@ -318,12 +317,12 @@ def get_tabel_num(message):
     if cancel_insert(message, reset_timers) is not None:
         return  # Если была отмена ввода - выходим
     if not message.text.isdigit():
-        bot.send_message(message.chat.id,
-                         "Введите корректный табельный номер (число):")
+        send_message(message.chat.id,
+                     "Введите корректный табельный номер (число):")
         bot.register_next_step_handler(message, get_tabel_num)
         return
     staff_data[message.chat.id]['tabel_num'] = message.text
-    bot.send_message(message.chat.id, "Введите должность:")
+    send_message(message.chat.id, "Введите должность:")
     bot.register_next_step_handler(message, get_position)
 
 
@@ -331,8 +330,8 @@ def get_position(message):
     if cancel_insert(message, reset_timers) is not None:
         return  # Если была отмена ввода - выходим
     staff_data[message.chat.id]['position'] = message.text
-    bot.send_message(message.chat.id,
-                     'Введите дату трудоустройства в формате "ДД.ММ.ГГГГ":')
+    send_message(message.chat.id,
+                 'Введите дату трудоустройства в формате "ДД.ММ.ГГГГ":')
     bot.register_next_step_handler(message, get_date_of_employment)
 
 
@@ -349,12 +348,12 @@ def get_date_of_employment(message):
     try:
         date_of_employment = convert_date_format(message.text)
         staff_data[message.chat.id]['date_of_employment'] = date_of_employment
-        bot.send_message(message.chat.id,
-                         'Введите день рождения в формате "ДД.ММ.ГГГГ":')
+        send_message(message.chat.id,
+                     'Введите день рождения в формате "ДД.ММ.ГГГГ":')
         bot.register_next_step_handler(message, get_day_of_birth)
     except ValueError:
-        bot.send_message(message.chat.id,
-                         "Пожалуйста, введите корректную дату (ДД.ММ.ГГГГ):")
+        send_message(message.chat.id,
+                     'Пожалуйста, введите корректную дату (ДД.ММ.ГГГГ):')
         bot.register_next_step_handler(message, get_date_of_employment)
 
 
@@ -364,22 +363,23 @@ def get_day_of_birth(message):
     try:
         day_of_birth = convert_date_format(message.text)
         staff_data[message.chat.id]['day_of_birth'] = day_of_birth
-        bot.send_message(message.chat.id,
-                         'Введите номер телефона (только цифры начиная с 8..:')
+        send_message(message.chat.id,
+                     'Введите номер телефона (только цифры начиная с 8..:')
         bot.register_next_step_handler(message, get_phone_number)
     except ValueError:
-        bot.send_message(message.chat.id,
-                         "Пожалуйста, введите корректную дату (ДД.ММ.ГГГГ):")
+        send_message(message.chat.id,
+                     'Пожалуйста, введите корректную дату (ДД.ММ.ГГГГ):')
         bot.register_next_step_handler(message, get_day_of_birth)
 
 
 def get_phone_number(message, upd=None):
     if cancel_insert(message, reset_timers) is not None:
         return  # Если была отмена ввода - выходим
-    if not message.text.isdigit() or len(message.text) < 10:
-        bot.send_message(message.chat.id,
-                         "Пожалуйста, введите корректный номер телефона."
-                         "Только цифры начиная с 8...:")
+    if not message.text.isdigit() or len(message.text) < 10 or \
+            message.text[0] != '8':
+        send_message(message.chat.id,
+                     'Пожалуйста, введите корректный номер телефона.'
+                     'Только цифры начиная с 8...:')
         bot.register_next_step_handler(message, get_phone_number,
                                        'phone_number' if upd else None)
         return
@@ -401,6 +401,7 @@ def save_staff(chat_id):
         send_message(ADMIN_CHAT, f'Добавлен сотрудник - {data["name"]}')
     except Exception as e:
         send_message(chat_id, f'Ошибка при добавлении сотрудника: {e}')
+        logger.error(f'Ошибка {e} при сохранении сотрудника {data["name"]}')
     finally:
         staff_data.clear()
 
@@ -423,7 +424,6 @@ def del_staff(message):
     except Exception as e:
         send_message(message.chat.id, f'Ошибка при удалении сотрудника: {e}')
     reset_timers[message.chat.id].cancel()  # Останавливаем таймер
-
 
 
 def convert_phone_number(phone_number):
@@ -487,7 +487,7 @@ def birthday_messages(message):
     user_ids = db_read('SELECT chat_id FROM users')
     if datetime.now().weekday() == 0:  # if current_time.hour == 20:
         send_message(ADMIN_CHAT, f'Кол-во зарегистрированных пользователей'
-                                     f' - {len(user_ids)}')
+                                 f' - {len(user_ids)}')
     if stacked:  # Если есть сообщения для отправки
         for chat_id in user_ids:
             chat_id = chat_id[0]  # Извлекаем chat_id из кортежа
@@ -500,8 +500,8 @@ def get_birthdays():
     while True:
         try:
             current_time = datetime.now()
-            if current_time - last_run_time >= timedelta(days=1):# and \
-                    #current_time.hour == 9 and current_time.minute >= 55:
+            if current_time - last_run_time >= timedelta(days=1):  # and \
+                # current_time.hour == 9 and current_time.minute >= 55:
                 last_run_time = current_time  # Обновляем время последнего запуска
                 today_birthday()
                 check_birthdays()
@@ -510,6 +510,7 @@ def get_birthdays():
             time.sleep(60)  # Ждем +-24 часа перед следующей проверкой
         except Exception as e:
             send_message(ADMIN_CHAT, f"Произошла ошибка: {e}")
+            logger.error(f'Ошибка {e} при получении дней рождения')
             time.sleep(60)  # Ждем 1 минуту перед повторной попыткой
 
 
@@ -520,6 +521,7 @@ def main():
         bot.infinity_polling()
     except Exception as e:
         bot.send_message(ADMIN_CHAT, f"Произошла ошибка: {e}")
+        logger.error(f'Ошибка в работе программы{e}')
 
 
 if __name__ == "__main__":
