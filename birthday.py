@@ -121,7 +121,6 @@ def callback_query(call):
             reset_timers[chat_id] = threading.Timer(20.0, cancel_staff, [
                 chat_id])  # Устанавливаем таймер
             reset_timers[chat_id].start()
-            print(reset_timers)
             bot.register_next_step_handler(call.message, get_name)
             # Запускаем таймер
         elif call.data == 'delete':
@@ -138,7 +137,6 @@ def callback_query(call):
             reset_timers[chat_id] = threading.Timer(20.0, cancel_staff, [
                 chat_id])  # Устанавливаем таймер
             reset_timers[chat_id].start()
-            print(reset_timers)
             bot.register_next_step_handler(call.message, edit_staff)
         elif call.data == 'fio':
             send_message(chat_id, "Введите новое значение для ФИО:")
