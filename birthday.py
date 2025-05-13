@@ -121,7 +121,6 @@ def callback_query(call):
             reset_timers[chat_id] = threading.Timer(60.0, cancel_staff, [
                 chat_id])  # Устанавливаем таймер
             reset_timers[chat_id].start()
-            print(reset_timers)
             bot.register_next_step_handler(call.message, get_name)
             # Запускаем таймер
         elif call.data == 'delete':
@@ -138,7 +137,6 @@ def callback_query(call):
             reset_timers[chat_id] = threading.Timer(30.0, cancel_staff, [
                 chat_id])  # Устанавливаем таймер
             reset_timers[chat_id].start()
-            print(reset_timers)
             bot.register_next_step_handler(call.message, edit_staff)
         elif call.data == 'fio':
             send_message(chat_id, "Введите новое значение для ФИО:")
@@ -434,9 +432,9 @@ def convert_phone_number(phone_number):
 
 def check_birthdays():
     """Проверяем дни рождения на следующие 3 дня"""
-    today = datetime.now()
-    for days_ahead in range(1, 4):  # 1, 2 и 3 дня вперед - (1, 4)
-        date_to_check = today + timedelta(days=days_ahead)
+    today_date = datetime.now()
+    for days_ahead in range(0, 4):  # 1, 2 и 3 дня вперед - (1, 4)
+        date_to_check = today_date + timedelta(days=days_ahead)
         day_to_filter = date_to_check.strftime("%d")
         month_to_filter = date_to_check.strftime("%m")
         rows = db_read('''
@@ -449,37 +447,16 @@ def check_birthdays():
             for row in rows:
                 age = datetime.now().year - int(row[2][:4])
                 phone_number = convert_phone_number(row[1])
+                today = datetime.now().day == int(day_to_filter)
+                date_message = 'Сегодня' if today else f'{day_to_filter}.' \
+                                                       f'{month_to_filter}'
                 birth = (
-                    f'{day_to_filter}.{month_to_filter} день рождения '
+                    f'{date_message} день рождения ',
                     f'сотрудника - <b>{row[0]}</b>!',
-                    f'Ему исполнится {age}!'
-                    # f' Поздравить - {phone_number}'
+                    f'Ему исполн%s {age}!' % ('яется' if today else 'ится'),
+                    f' Поздравить: <b>{phone_number}</b>' if today else ''
                 )
                 stacked.append(' '.join(birth))  # Объединяем строки в одну
-
-
-def today_birthday():
-    """Проверяем дни рождения на сегодня."""
-    today = datetime.now()
-    day_to_filter = today.strftime("%d")
-    month_to_filter = today.strftime("%m")
-    rows = db_read('''
-            SELECT name, phone_number, date_of_birth
-            FROM staff
-            WHERE strftime('%d', date_of_birth) = ?
-            AND strftime('%m', date_of_birth) = ?;
-        ''', (day_to_filter, month_to_filter))
-    if rows:  # Если есть строки
-        for row in rows:
-            age = datetime.now().year - int(row[2][:4])
-            phone_number = convert_phone_number(row[1])
-            birth = (
-                f'Сегодня день рождения '
-                f'сотрудника - <b>{row[0]}</b>!',
-                f'Ему исполняется {age}!'
-                f' Поздравить: <b>{phone_number}</b>'
-            )
-            stacked.append(' '.join(birth))  # Объединяем строки в одну
 
 
 def birthday_messages(message):
@@ -503,7 +480,6 @@ def get_birthdays():
             if current_time - last_run_time >= timedelta(days=1) and \
                 current_time.hour == 9 and current_time.minute >= 55:
                 last_run_time = current_time  # Обновляем время последнего запуска
-                today_birthday()
                 check_birthdays()
                 birthday_messages(stacked)  # Отправляем сообщения
                 stacked.clear()  # Очищаем стек сообщений
