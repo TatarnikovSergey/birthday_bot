@@ -433,7 +433,7 @@ def convert_phone_number(phone_number):
 def check_birthdays():
     """Проверяем дни рождения на следующие 3 дня"""
     today_date = datetime.now()
-    for days_ahead in range(0, 15):  # 1, 2 и 3 дня вперед - (1, 4)
+    for days_ahead in range(0, 4):  # 1, 2 и 3 дня вперед - (1, 4)
         date_to_check = today_date + timedelta(days=days_ahead)
         day_to_filter = date_to_check.strftime("%d")
         month_to_filter = date_to_check.strftime("%m")
@@ -459,30 +459,6 @@ def check_birthdays():
                 stacked.append(' '.join(birth))  # Объединяем строки в одну
 
 
-def today_birthday():
-    """Проверяем дни рождения на сегодня."""
-    today = datetime.now()
-    day_to_filter = today.strftime("%d")
-    month_to_filter = today.strftime("%m")
-    rows = db_read('''
-            SELECT name, phone_number, date_of_birth
-            FROM staff
-            WHERE strftime('%d', date_of_birth) = ?
-            AND strftime('%m', date_of_birth) = ?;
-        ''', (day_to_filter, month_to_filter))
-    if rows:  # Если есть строки
-        for row in rows:
-            age = datetime.now().year - int(row[2][:4])
-            phone_number = convert_phone_number(row[1])
-            birth = (
-                f'Сегодня день рождения '
-                f'сотрудника - <b>{row[0]}</b>!',
-                f'Ему исполняется {age}!'
-                f' Поздравить: <b>{phone_number}</b>'
-            )
-            stacked.append(' '.join(birth))  # Объединяем строки в одну
-
-
 def birthday_messages(message):
     # Получаем всех пользователей для отправки сообщений
     user_ids = db_read('SELECT chat_id FROM users')
@@ -501,10 +477,9 @@ def get_birthdays():
     while True:
         try:
             current_time = datetime.now()
-            if current_time - last_run_time >= timedelta(days=1): # and \
-                # current_time.hour == 9 and current_time.minute >= 55:
+            if current_time - last_run_time >= timedelta(days=1) and \
+                current_time.hour == 9 and current_time.minute >= 55:
                 last_run_time = current_time  # Обновляем время последнего запуска
-                # today_birthday()
                 check_birthdays()
                 birthday_messages(stacked)  # Отправляем сообщения
                 stacked.clear()  # Очищаем стек сообщений
