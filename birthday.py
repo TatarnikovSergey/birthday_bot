@@ -47,7 +47,6 @@ def send_message(chat_id, message, reply_markup=None):
                      f'{reply_markup if reply_markup else None}')
 
 
-
 @bot.message_handler(commands=['start'])
 def say_hi(message):
     """Получаем данные нового пользователя."""
