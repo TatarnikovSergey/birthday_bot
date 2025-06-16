@@ -118,14 +118,14 @@ def callback_query(call):
             staff_data[chat_id] = {}  # Инициируем словарь данных
             send_message(chat_id, "Введите ФИО сотрудника:")
 
-            reset_timers[chat_id] = threading.Timer(60.0, cancel_staff, [
+            reset_timers[chat_id] = threading.Timer(120.0, cancel_staff, [
                 chat_id])  # Устанавливаем таймер
             reset_timers[chat_id].start()
             bot.register_next_step_handler(call.message, get_name)
             # Запускаем таймер
         elif call.data == 'delete':
             send_message(chat_id, "Введите имя сотрудника для удаления:")
-            reset_timers[chat_id] = threading.Timer(20.0, cancel_staff, [
+            reset_timers[chat_id] = threading.Timer(40.0, cancel_staff, [
                 chat_id])  # Устанавливаем таймер
             reset_timers[chat_id].start()
             bot.register_next_step_handler(call.message, del_staff)
@@ -134,7 +134,7 @@ def callback_query(call):
         elif call.data == 'edit':
             send_message(chat_id, "Введите ФИО сотрудника для редактирования:")
             staff_data[call.message.chat.id] = {}
-            reset_timers[chat_id] = threading.Timer(30.0, cancel_staff, [
+            reset_timers[chat_id] = threading.Timer(60.0, cancel_staff, [
                 chat_id])  # Устанавливаем таймер
             reset_timers[chat_id].start()
             bot.register_next_step_handler(call.message, edit_staff)
