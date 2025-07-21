@@ -1,9 +1,11 @@
 import pandas as pd
 import sqlite3
 
+from parameters import FILE_PATH, SHEET_NAME
+
 # Шаг 1: Чтение данных из Excel файла
-excel_file = 'staff.xlsx'  # Укажите путь к вашему Excel файлу
-sheet_name = 'vp'  # Укажите имя листа, если необходимо
+excel_file = FILE_PATH
+sheet_name = SHEET_NAME
 data = pd.read_excel(excel_file, sheet_name=sheet_name)
 
 # Преобразование столбцов с датами в нужный формат
