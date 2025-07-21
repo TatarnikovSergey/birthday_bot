@@ -10,6 +10,9 @@ from telebot import apihelper
 from dotenv import load_dotenv
 
 from keyboarbs import keyboard_start, keyboard_crud, keyboard_staff
+from parameters import TIME_ADD_STAFF, TIME_DEL_STAFF, TIME_EDIT_STAFF, \
+    max_length_message, DAYS_CHECK, MES_HOUR, MES_MINUTE, \
+    DAY_TO_INFO_COUN_USERS
 from working_db import db_read, db_write, save_user
 
 load_dotenv()
@@ -117,14 +120,14 @@ def callback_query(call):
             staff_data[chat_id] = {}  # Инициируем словарь данных
             send_message(chat_id, "Введите ФИО сотрудника:")
 
-            reset_timers[chat_id] = threading.Timer(120.0, cancel_staff, [
+            reset_timers[chat_id] = threading.Timer(TIME_ADD_STAFF, cancel_staff, [
                 chat_id])  # Устанавливаем таймер
             reset_timers[chat_id].start()
             bot.register_next_step_handler(call.message, get_name)
             # Запускаем таймер
         elif call.data == 'delete':
             send_message(chat_id, "Введите имя сотрудника для удаления:")
-            reset_timers[chat_id] = threading.Timer(40.0, cancel_staff, [
+            reset_timers[chat_id] = threading.Timer(TIME_DEL_STAFF, cancel_staff, [
                 chat_id])  # Устанавливаем таймер
             reset_timers[chat_id].start()
             bot.register_next_step_handler(call.message, del_staff)
@@ -133,8 +136,8 @@ def callback_query(call):
         elif call.data == 'edit':
             send_message(chat_id, "Введите ФИО сотрудника для редактирования:")
             staff_data[call.message.chat.id] = {}
-            reset_timers[chat_id] = threading.Timer(60.0, cancel_staff, [
-                chat_id])  # Устанавливаем таймер
+            reset_timers[chat_id] = threading.Timer(
+                TIME_EDIT_STAFF, cancel_staff, [chat_id])  # Устанавливаем таймер
             reset_timers[chat_id].start()
             bot.register_next_step_handler(call.message, edit_staff)
         elif call.data == 'fio':
@@ -269,11 +272,10 @@ def get_list_staff(call):
         else:
             staff_message = 'Список сотрудников пуст.'
             # Разбиваем сообщение на части, если оно слишком длинное
-        max_length = 4096
-        if len(staff_message) > max_length:
-            for i in range(0, len(staff_message), max_length):
+        if len(staff_message) > max_length_message:
+            for i in range(0, len(staff_message), max_length_message):
                 send_message(call.message.chat.id,
-                             staff_message[i:i + max_length])
+                             staff_message[i:i + max_length_message])
         else:
             # Отправляем сообщение с полным списком сотрудников
             send_message(call.message.chat.id, staff_message)
@@ -430,9 +432,9 @@ def convert_phone_number(phone_number):
 
 
 def check_birthdays():
-    """Проверяем дни рождения на следующие 3 дня"""
+    """Проверяем дни рождения на несколько дней"""
     today_date = datetime.now()
-    for days_ahead in range(0, 4):  # 1, 2 и 3 дня вперед - (1, 4)
+    for days_ahead in range(0, DAYS_CHECK+1):  # 1, 2 и 3 дня вперед - (1, 4)
         date_to_check = today_date + timedelta(days=days_ahead)
         day_to_filter = date_to_check.strftime("%d")
         month_to_filter = date_to_check.strftime("%m")
@@ -461,7 +463,7 @@ def check_birthdays():
 def birthday_messages(message):
     # Получаем всех пользователей для отправки сообщений
     user_ids = db_read('SELECT chat_id FROM users')
-    if datetime.now().weekday() == 0:  # if current_time.hour == 20:
+    if datetime.now().weekday() == DAY_TO_INFO_COUN_USERS:
         send_message(ADMIN_CHAT, f'Кол-во зарегистрированных пользователей'
                                  f' - {len(user_ids)}')
     if stacked:  # Если есть сообщения для отправки
@@ -477,7 +479,8 @@ def get_birthdays():
         try:
             current_time = datetime.now()
             if current_time - last_run_time >= timedelta(days=1) and \
-                current_time.hour == 9 and current_time.minute >= 55:
+                current_time.hour == MES_HOUR and \
+                    current_time.minute >= MES_MINUTE:
                 last_run_time = current_time  # Обновляем время последнего запуска
                 check_birthdays()
                 birthday_messages(stacked)  # Отправляем сообщения
