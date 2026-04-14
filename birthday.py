@@ -496,7 +496,7 @@ def main():
     # Запускаем бота в отдельном потоке
     threading.Thread(target=get_birthdays).start()
     try:
-        bot.infinity_polling()
+        bot.infinity_polling(timeout=60, long_polling_timeout=60)
     except Exception as e:
         bot.send_message(ADMIN_CHAT, f"Произошла ошибка: {e}")
         logger.error(f'Ошибка в работе программы{e}')
